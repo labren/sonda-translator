@@ -1,0 +1,117 @@
+{
+  "sms": {
+    "coleta": {
+      "SD": [
+        "TIMESTAMP",
+        "RECORD",
+        "Id",
+        "Year",
+        "Jday",
+        "Min",
+        "glo_avg"
+      ],
+      "MD": [
+        "TIMESTAMP",
+        "RECORD",
+        "Id",
+        "Year",
+        "Jday",
+        "Min",
+        "tp_sfc",
+        "humid"
+      ],
+      "TD": [
+        "TIMESTAMP",
+        "RECORD",
+        "Id",
+        "Year",
+        "Jday",
+        "Min",
+        "par_avg"
+      ]
+    },
+    "formatado": {
+      "SD": {
+        "TIMESTAMP": "timestamp",
+        "Id": "id",
+        "Year": "year",
+        "glo_avg": "global_average"
+      },
+      "MD": {
+        "TIMESTAMP": "timestamp",
+        "Id": "id",
+        "tp_sfc": "temperature",
+        "humid": "humidity"
+      },
+      "TD": {
+        "TIMESTAMP": "timestamp",
+        "Id": "id",
+        "par_avg": "par_average"
+      }
+    }
+  },
+  "stm": {
+    "coleta": {
+      "50": [
+        "TIMESTAMP",
+        "RECORD",
+        "Id",
+        "Year",
+        "Jday",
+        "Min",
+        "rainfall"
+      ],
+      "SD": [
+        "TIMESTAMP",
+        "RECORD",
+        "Id",
+        "Year",
+        "Jday",
+        "Min",
+        "lux_avg"
+      ],
+      "MD": [
+        "TIMESTAMP",
+        "RECORD",
+        "Id",
+        "Year",
+        "Jday",
+        "Min",
+        "wind_speed"
+      ]
+    },
+    "formatado": {
+      "50": {
+        "TIMESTAMP": "timestamp",
+        "Id": "id",
+        "rainfall": "rainfall"
+      },
+      "SD": {
+        "TIMESTAMP": "timestamp",
+        "Id": "id",
+        "lux_avg": "lux_average"
+      },
+      "MD": {
+        "TIMESTAMP": "timestamp",
+        "Id": "id",
+        "wind_speed": "windspeed"
+      }
+    }
+  },
+  "teste": {
+    "coleta": {
+      "SD": [
+        "",
+        "",
+        ""
+      ],
+      "MD": [],
+      "TD": []
+    },
+    "formatado": {
+      "SD": {},
+      "MD": {},
+      "TD": {}
+    }
+  }
+}
