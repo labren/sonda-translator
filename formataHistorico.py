@@ -43,13 +43,24 @@ def baixarDados(estacao, extensao='.dat'):
     ftp.quit()
 
 
-import csv
 
-def lerDado(arqv, freq='1MS', cabecalho=[],
-            separator=',',
-            timestamp_col='TIMESTAMP',
-            header_row=1, data_row=4):
+import duckdb
+
+def lerDado(arqv, data_row=4):
     
+    # Ler o arquivo com o duckdb de forma automática
+    df = duckdb.query(f"""
+        SELECT * 
+        FROM read_csv_auto('{arqv}',
+        header=false,
+        skip={data_row},
+        ignore_errors=true)
+        LIMIT 10
+    """)
+
+
+    print(df)
+    return
 
     
     # Ler o arquivo com o pandas
@@ -75,6 +86,12 @@ def lerDado(arqv, freq='1MS', cabecalho=[],
         except:
             print('Erro ao ler cabeçalho')
             pass
+    print(df)
+    return
+    
+    
+    
+    
     # Encontra a coluna de timestamp, ou seja,
     # a primeira linha deve haver um dado que
     #  contenha os padrões 'YYYY-MM-DD HH:MM:SS', 'YYYY/MM/DD HH:MM:SS'
@@ -121,10 +138,6 @@ if __name__ == '__main__':
     parser.add_argument('-b', type=str, help='Baixar os dados da estação', default=False)
     parser.add_argument('-t', type=str, default='ALL', help='Tipo de dado', choices=['MD', 'SD', 'TD', '50', '25', '10', 'ALL'])
     parser.add_argument('-ext', type=str, default='.DAT', help='Extensão do arquivo')
-    parser.add_argument('-sep', type=str, default=',', help='Separador do arquivo')
-    parser.add_argument('-freq', type=str, default='1MS', help='Frequência\
-    1MS = Mensal, 1D = Diário, 1H = Horário, 1T = Minuto')
-    parser.add_argument('-header', type=int, default=1, help='Número da linha do cabeçalho')
     parser.add_argument('-data', type=int, default=4, help='Número da linha dos dados')    
     args = parser.parse_args()
 
@@ -146,8 +159,6 @@ if __name__ == '__main__':
     
     # ler os arquivos em serie
     for arq in arquivos:
-        lerDado(arq,
-                freq=args.freq, 
-                header_row=args.header,
-                data_row=args.data)
+        lerDado(arq)
+        # break
         
