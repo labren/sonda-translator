@@ -3,6 +3,7 @@
 *.dat
 *.csv
 *.txt
+ftp/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
