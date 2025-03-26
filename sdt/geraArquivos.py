@@ -7,7 +7,7 @@ import concurrent.futures
 
 def processar_arquivo(args):
     """Processa um único arquivo e retorna suas informações categorizadas"""
-    caminho_completo = args
+    caminho_completo, tipos_dados = args
     arquivo = os.path.basename(caminho_completo)
     partes_caminho = caminho_completo.split('/')
     
@@ -19,14 +19,22 @@ def processar_arquivo(args):
     else:
         estacao = "desconhecido"
     
-    # Verificar se é histórico (verifica se contém a palavra 'historico' no caminho)
-    is_historico = 'historico' in caminho_completo.lower()
+    # Verificar se é histórico (está em subdiretório além do estação)
+    is_historico = len(partes_caminho) > indice_coleta + 2
+    
+    # Determinar tipo de dado com base no nome do arquivo
+    tipo_dado = "RAW"
+    for tipo in tipos_dados:
+        if tipo in arquivo.upper():
+            tipo_dado = tipo
+            break
     
     # Retornar informações do arquivo
     return {
         "caminho": caminho_completo,
         "estacao": estacao,
-        "is_historico": is_historico
+        "is_historico": is_historico,
+        "tipo_dado": tipo_dado
     }
 
 def buscar_arquivos_estacao(args):
@@ -86,11 +94,11 @@ def encontrar_arquivos_dat(diretorio_base, extensao=".dat"):
     print(f"Encontrados {len(todos_arquivos)} arquivos {extensao} no total")
     return todos_arquivos
 
-def processar_lote(lote, pbar, resultados, lock):
+def processar_lote(lote, tipos_dados, pbar, resultados, lock):
     """Processa um lote de arquivos e atualiza o progresso"""
     lote_resultados = []
     for caminho in lote:
-        resultado = processar_arquivo(caminho)
+        resultado = processar_arquivo((caminho, tipos_dados))
         lote_resultados.append(resultado)
         with lock:
             pbar.update(1)
@@ -101,8 +109,9 @@ def processar_lote(lote, pbar, resultados, lock):
 
 def listar_arquivos_dat():
     inicio = time.time()
-    diretorio_base = "ftp/restricted/coleta/"
+    diretorio_base = "../ftp/restricted/coleta/"
     extensao = ".dat"
+    tipos_dados = ['AMB', 'MD', 'RAD', 'SD', 'TD', 'ANE', '10', '25', '50']
     
     # Agora a busca já é paralela
     caminhos_arquivos = encontrar_arquivos_dat(diretorio_base, extensao)
@@ -127,7 +136,7 @@ def listar_arquivos_dat():
         for lote in lotes:
             thread = threading.Thread(
                 target=processar_lote,
-                args=(lote, pbar, resultados, lock)
+                args=(lote, tipos_dados, pbar, resultados, lock)
             )
             threads.append(thread)
             thread.start()
@@ -141,37 +150,12 @@ def listar_arquivos_dat():
     
     return resultados
 
-def salvar_json(dados, nome_arquivo="arquivos_dat.json"):
+def salvar_json(dados, nome_arquivo="json/arquivos_dat.json"):
     """Salva os dados em um arquivo JSON"""
     print(f"Salvando {len(dados)} registros em {nome_arquivo}...")
     with open(nome_arquivo, 'w', encoding='utf-8') as f:
         json.dump(dados, f, indent=2)
     print(f"✓ Dados salvos com sucesso em {nome_arquivo}")
-
-def salvar_estatisticas(total_arquivos, estacoes, historicos, tempo_execucao, nome_arquivo="estatisticas.txt"):
-    """Salva as estatísticas em um arquivo de texto"""
-    print(f"Salvando estatísticas em {nome_arquivo}...")
-    
-    with open(nome_arquivo, 'w', encoding='utf-8') as f:
-        f.write("📊 ESTATÍSTICAS DE ARQUIVOS DAT\n")
-        f.write("=" * 40 + "\n\n")
-        
-        f.write(f"Total de arquivos .dat encontrados: {total_arquivos}\n\n")
-        
-        f.write("Arquivos por estação:\n")
-        for estacao, contagem in sorted(estacoes.items(), key=lambda x: x[1], reverse=True):
-            f.write(f"  {estacao}: {contagem}\n")
-        
-        f.write("\nArquivos históricos vs. atuais:\n")
-        f.write(f"  Históricos: {historicos['sim']}\n")
-        f.write(f"  Atuais: {historicos['não']}\n")
-        
-        f.write(f"\nTempo total de execução: {tempo_execucao:.2f} segundos\n")
-        
-        # Adicionar timestamp
-        f.write(f"\nRelatório gerado em: {time.strftime('%d/%m/%Y %H:%M:%S')}\n")
-    
-    print(f"✓ Estatísticas salvas com sucesso em {nome_arquivo}")
 
 def main():
     try:
@@ -192,41 +176,36 @@ def main():
         print(f"\n📊 Estatísticas:")
         print(f"Total de arquivos .dat encontrados: {len(arquivos_dat)}")
         
-        # Contar por estação
+        # Contar por estação e tipo
         estacoes = {}
+        tipos = {}
         historicos = {"sim": 0, "não": 0}
         
         for arquivo in arquivos_dat:
             estacao = arquivo["estacao"]
+            tipo = arquivo["tipo_dado"]
             is_historico = arquivo["is_historico"]
             
             estacoes[estacao] = estacoes.get(estacao, 0) + 1
+            tipos[tipo] = tipos.get(tipo, 0) + 1
             if is_historico:
                 historicos["sim"] += 1
             else:
                 historicos["não"] += 1
         
-        # Calcular tempo total de execução
-        tempo_total = time.time() - inicio_total
-        
-        # Exibir estatísticas no console
         print("\nArquivos por estação:")
         for estacao, contagem in sorted(estacoes.items(), key=lambda x: x[1], reverse=True):
             print(f"  {estacao}: {contagem}")
+            
+        print("\nArquivos por tipo de dado:")
+        for tipo, contagem in sorted(tipos.items(), key=lambda x: x[1], reverse=True):
+            print(f"  {tipo}: {contagem}")
             
         print("\nArquivos históricos vs. atuais:")
         print(f"  Históricos: {historicos['sim']}")
         print(f"  Atuais: {historicos['não']}")
             
-        print(f"\n⏱️ Tempo total de execução: {tempo_total:.2f} segundos")
-        
-        # Salvar estatísticas em arquivo
-        salvar_estatisticas(
-            total_arquivos=len(arquivos_dat),
-            estacoes=estacoes,
-            historicos=historicos,
-            tempo_execucao=tempo_total
-        )
+        print(f"\n⏱️ Tempo total de execução: {time.time() - inicio_total:.2f} segundos")
         
     except Exception as e:
         import traceback
