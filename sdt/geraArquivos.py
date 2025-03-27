@@ -31,9 +31,9 @@ def extrair_ano(caminho_completo, nome_arquivo):
     match = re.search(r'/(\d{4})(?:/|$)', caminho_completo)
     if match:
         ano = match.group(1)
-        # Verificar se é um ano válido (entre 1990 e o ano atual)
-        if 1990 <= int(ano) <= time.localtime().tm_year:
-            return ano
+        # Verificar se é um ano válido (entre 1900 e o ano atual)
+        if 1900 <= int(ano) <= time.localtime().tm_year:
+            return int(ano)
     
     # Procurar no nome do arquivo por padrões como CPA_2020_092_a_121.dat
     match = re.search(r'_(\d{4})_', nome_arquivo)
@@ -303,7 +303,9 @@ def main():
             print(f"  {tipo}: {contagem}")
         
         print("\nArquivos por ano:")
-        for data, contagem in sorted(datas.items(), key=lambda x: (x[0] != 'INDEFINIDO', x[0])):
+        anos_ordenados = sorted(datas.items(), key=lambda item: (item[0] != 
+            1900, item[0]))
+        for data, contagem in anos_ordenados:
             print(f"  {data}: {contagem}")
             
         print("\nArquivos históricos vs. atuais:")
