@@ -1,13 +1,64 @@
 import os
 import json
 import time
+import re
 from tqdm import tqdm
 import threading
 import concurrent.futures
 
+# Adicionar variável global para contagem
+contador_global = 0
+contador_lock = threading.Lock()
+
+def determinar_tipo(nome_arquivo):
+    """Determina o tipo de dado baseado no padrão do nome do arquivo"""
+    nome_arquivo = nome_arquivo.upper()
+    
+    if '_AMB.DAT' in nome_arquivo or '_MD.DAT' in nome_arquivo:
+        return 'MD'
+    elif '_RAD.DAT' in nome_arquivo or '_SD.DAT' in nome_arquivo:
+        return 'SD'
+    elif '_TD.DAT' in nome_arquivo:
+        return 'TD'
+    elif '_ANE.DAT' in nome_arquivo or '_10.DAT' in nome_arquivo or '_25.DAT' in nome_arquivo or '_50.DAT' in nome_arquivo:
+        return 'WD'
+    else:
+        return 'INDEFINIDO'
+
+def extrair_ano(caminho_completo, nome_arquivo):
+    """Extrai o ano do caminho ou do nome do arquivo"""
+    # Procurar por um ano de 4 dígitos no caminho (formato mais flexível)
+    match = re.search(r'/(\d{4})(?:/|$)', caminho_completo)
+    if match:
+        ano = match.group(1)
+        # Verificar se é um ano válido (entre 1990 e o ano atual)
+        if 1990 <= int(ano) <= time.localtime().tm_year:
+            return ano
+    
+    # Procurar no nome do arquivo por padrões como CPA_2020_092_a_121.dat
+    match = re.search(r'_(\d{4})_', nome_arquivo)
+    if match:
+        return int(match.group(1))
+    
+    # Se não encontrou com o padrão anterior, procurar no nome do arquivo
+    match = re.search(r'(\d{2})(\d{2})', nome_arquivo)
+    if match:
+        possivel_ano_2_digitos = match.group(1)
+        # Converter ano de 2 dígitos para 4 dígitos (20XX ou 19XX)
+        ano_completo = ""
+        if int(possivel_ano_2_digitos) <= time.localtime().tm_year % 100:
+            ano_completo = "20" + possivel_ano_2_digitos
+        else:
+            ano_completo = "19" + possivel_ano_2_digitos
+        return int(ano_completo)
+    
+    return 1900  # Retornar um ano padrão se não encontrou nada
+
 def processar_arquivo(args):
     """Processa um único arquivo e retorna suas informações categorizadas"""
-    caminho_completo, tipos_dados = args
+    global contador_global
+    
+    caminho_completo = args
     arquivo = os.path.basename(caminho_completo)
     partes_caminho = caminho_completo.split('/')
     
@@ -19,22 +70,28 @@ def processar_arquivo(args):
     else:
         estacao = "desconhecido"
     
-    # Verificar se é histórico (está em subdiretório além do estação)
-    is_historico = len(partes_caminho) > indice_coleta + 2
+    # Verificar se é histórico (verifica se contém a palavra 'historico' no caminho)
+    is_historico = 'historico' in caminho_completo.lower()
     
-    # Determinar tipo de dado com base no nome do arquivo
-    tipo_dado = "RAW"
-    for tipo in tipos_dados:
-        if tipo in arquivo.upper():
-            tipo_dado = tipo
-            break
+    # Determinar tipo com base nos padrões especificados
+    tipo = determinar_tipo(arquivo)
+    
+    # Extrair ano do caminho ou do nome do arquivo
+    date = extrair_ano(caminho_completo, arquivo)
+    
+    # Gerar ID único de forma thread-safe
+    with contador_lock:
+        contador_global += 1
+        id_unico = contador_global
     
     # Retornar informações do arquivo
     return {
+        "id": id_unico,
         "caminho": caminho_completo,
         "estacao": estacao,
         "is_historico": is_historico,
-        "tipo_dado": tipo_dado
+        "tipo": tipo,
+        "date": date
     }
 
 def buscar_arquivos_estacao(args):
@@ -94,11 +151,11 @@ def encontrar_arquivos_dat(diretorio_base, extensao=".dat"):
     print(f"Encontrados {len(todos_arquivos)} arquivos {extensao} no total")
     return todos_arquivos
 
-def processar_lote(lote, tipos_dados, pbar, resultados, lock):
+def processar_lote(lote, pbar, resultados, lock):
     """Processa um lote de arquivos e atualiza o progresso"""
     lote_resultados = []
     for caminho in lote:
-        resultado = processar_arquivo((caminho, tipos_dados))
+        resultado = processar_arquivo(caminho)
         lote_resultados.append(resultado)
         with lock:
             pbar.update(1)
@@ -111,7 +168,6 @@ def listar_arquivos_dat():
     inicio = time.time()
     diretorio_base = "../ftp/restricted/coleta/"
     extensao = ".dat"
-    tipos_dados = ['AMB', 'MD', 'RAD', 'SD', 'TD', 'ANE', '10', '25', '50']
     
     # Agora a busca já é paralela
     caminhos_arquivos = encontrar_arquivos_dat(diretorio_base, extensao)
@@ -136,7 +192,7 @@ def listar_arquivos_dat():
         for lote in lotes:
             thread = threading.Thread(
                 target=processar_lote,
-                args=(lote, tipos_dados, pbar, resultados, lock)
+                args=(lote, pbar, resultados, lock)
             )
             threads.append(thread)
             thread.start()
@@ -157,6 +213,39 @@ def salvar_json(dados, nome_arquivo="json/arquivos_dat.json"):
         json.dump(dados, f, indent=2)
     print(f"✓ Dados salvos com sucesso em {nome_arquivo}")
 
+def salvar_estatisticas(total_arquivos, estacoes, tipos, datas, historicos, tempo_execucao, nome_arquivo="estatisticas.txt"):
+    """Salva as estatísticas em um arquivo de texto"""
+    print(f"Salvando estatísticas em {nome_arquivo}...")
+    
+    with open(nome_arquivo, 'w', encoding='utf-8') as f:
+        f.write("📊 ESTATÍSTICAS DE ARQUIVOS DAT\n")
+        f.write("=" * 40 + "\n\n")
+        
+        f.write(f"Total de arquivos .dat encontrados: {total_arquivos}\n\n")
+        
+        f.write("Arquivos por estação:\n")
+        for estacao, contagem in sorted(estacoes.items(), key=lambda x: x[1], reverse=True):
+            f.write(f"  {estacao}: {contagem}\n")
+        
+        f.write("\nArquivos por tipo:\n")
+        for tipo, contagem in sorted(tipos.items(), key=lambda x: x[1], reverse=True):
+            f.write(f"  {tipo}: {contagem}\n")
+        
+        f.write("\nArquivos por ano:\n")
+        for data, contagem in sorted(datas.items(), key=lambda x: (x[0] != 'INDEFINIDO', x[0])):
+            f.write(f"  {data}: {contagem}\n")
+        
+        f.write("\nArquivos históricos vs. atuais:\n")
+        f.write(f"  Históricos: {historicos['sim']}\n")
+        f.write(f"  Atuais: {historicos['não']}\n")
+        
+        f.write(f"\nTempo total de execução: {tempo_execucao:.2f} segundos\n")
+        
+        # Adicionar timestamp
+        f.write(f"\nRelatório gerado em: {time.strftime('%d/%m/%Y %H:%M:%S')}\n")
+    
+    print(f"✓ Estatísticas salvas com sucesso em {nome_arquivo}")
+
 def main():
     try:
         inicio_total = time.time()
@@ -169,6 +258,10 @@ def main():
             print("Nenhum arquivo .dat encontrado no diretório ftp/restricted/coleta/")
             return
         
+        # Adicionar contador único (ID) para cada arquivo
+        for idx, arquivo in enumerate(arquivos_dat, 1):
+            arquivo["id"] = idx
+        
         # Salvar no arquivo JSON
         salvar_json(arquivos_dat)
         
@@ -176,36 +269,58 @@ def main():
         print(f"\n📊 Estatísticas:")
         print(f"Total de arquivos .dat encontrados: {len(arquivos_dat)}")
         
-        # Contar por estação e tipo
+        # Contar por estação, tipo, data e status histórico
         estacoes = {}
         tipos = {}
+        datas = {}
         historicos = {"sim": 0, "não": 0}
         
         for arquivo in arquivos_dat:
             estacao = arquivo["estacao"]
-            tipo = arquivo["tipo_dado"]
+            tipo = arquivo["tipo"]
+            date = arquivo["date"]
             is_historico = arquivo["is_historico"]
             
             estacoes[estacao] = estacoes.get(estacao, 0) + 1
             tipos[tipo] = tipos.get(tipo, 0) + 1
+            datas[date] = datas.get(date, 0) + 1
+            
             if is_historico:
                 historicos["sim"] += 1
             else:
                 historicos["não"] += 1
         
+        # Calcular tempo total de execução
+        tempo_total = time.time() - inicio_total
+        
+        # Exibir estatísticas no console
         print("\nArquivos por estação:")
         for estacao, contagem in sorted(estacoes.items(), key=lambda x: x[1], reverse=True):
             print(f"  {estacao}: {contagem}")
-            
-        print("\nArquivos por tipo de dado:")
+        
+        print("\nArquivos por tipo:")
         for tipo, contagem in sorted(tipos.items(), key=lambda x: x[1], reverse=True):
             print(f"  {tipo}: {contagem}")
+        
+        print("\nArquivos por ano:")
+        for data, contagem in sorted(datas.items(), key=lambda x: (x[0] != 'INDEFINIDO', x[0])):
+            print(f"  {data}: {contagem}")
             
         print("\nArquivos históricos vs. atuais:")
         print(f"  Históricos: {historicos['sim']}")
         print(f"  Atuais: {historicos['não']}")
             
-        print(f"\n⏱️ Tempo total de execução: {time.time() - inicio_total:.2f} segundos")
+        print(f"\n⏱️ Tempo total de execução: {tempo_total:.2f} segundos")
+        
+        # Salvar estatísticas em arquivo
+        salvar_estatisticas(
+            total_arquivos=len(arquivos_dat),
+            estacoes=estacoes,
+            tipos=tipos,
+            datas=datas,
+            historicos=historicos,
+            tempo_execucao=tempo_total
+        )
         
     except Exception as e:
         import traceback
