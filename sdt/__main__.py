@@ -2,7 +2,10 @@ import argparse
 import json
 import os
 import pandas as pd
+import tqdm
 from distutils.util import strtobool
+from multiprocessing import Pool
+from lerDat import lerArquivo
 
 
 if __name__ == "__main__":
@@ -12,14 +15,18 @@ if __name__ == "__main__":
     parser.add_argument('-hist', '--historico', 
                         type=lambda x: bool(strtobool(x)), 
                         help='Se True, irá buscar os dados históricos')
-    parser.add_argument('-ano', '--ano', type=int, default=2023,
-                        help='Ano para buscar os dados')
+    parser.add_argument('-ano', '--ano', type=str,
+                        help='Ano do dado a ser buscado. Aceita: YYYY, YYYY-MM, YYYY-MM-DD',
+                        default='')
     parser.add_argument('-tipo', '--tipo', type=str,
                 help='Tipo de dado a ser buscado. Aceita: SD, MD, WD, INDEFINIDO, TD',
                 choices=['SD', 'MD', 'WD', 'INDEFINIDO', 'TD'])
-    # Crie um parametro para exibir os dados
     parser.add_argument('-exibir', '--exibir', action='store_true',
                         help='Exibe os dados filtrados')
+    parser.add_argument('-p', '--paralelizar', action='store_true',
+                        help='Paraleliza o processamento dos arquivos')
+    parser.add_argument('-id', '--id', type=int,
+                        help='ID do arquivo a ser buscado')
 
     args = parser.parse_args()
     
@@ -43,15 +50,48 @@ if __name__ == "__main__":
     # Filter by historical flag
     dat_files_df = dat_files_df[dat_files_df['is_historico'] == args.historico]
     
-
     # Filter by type if specified
     if args.tipo:
         dat_files_df = dat_files_df[dat_files_df['tipo'] == args.tipo]
+
+    # Filter by year if specified
+    if args.ano:
+        dat_files_df = dat_files_df[dat_files_df['date'] == args.ano]
+
+    # Filter by ID if specified
+    if args.id:
+        dat_files_df = dat_files_df[dat_files_df['id'] == args.id]
 
     # Exibe the filtered data
     if args.exibir:
         print(dat_files_df)
 
+    # Pegue os dados que serão processados
+    dat_files_to_process = dat_files_df['caminho'].tolist()
+    # Pegue os tipos de dados que serão processados
+    dat_files_types = dat_files_df['tipo'].tolist()
 
-    # print(dat_files_df.date.unique())
-    
+    # Monta barra de progresso
+    pbar = tqdm.tqdm(total=len(dat_files_to_process), desc="Processing files", unit="file")
+
+    if args.paralelizar:
+        # Use multiprocessing to process files in parallel
+        with Pool() as pool:
+            results = []
+            for result in pool.imap(lerArquivo, zip(dat_files_to_process, dat_files_types)):
+                results.append(result)
+                pbar.update()
+        pool.close()
+        pool.join()
+    else:
+        # Process files sequentially
+        for file_path, file_type in zip(dat_files_to_process, dat_files_types):
+            lerArquivo((file_path, file_type))
+            break
+            pbar.update()
+    pbar.close()
+    # Finalize the progress bar
+    print("Processing complete.")
+
+
+
