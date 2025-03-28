@@ -10,13 +10,16 @@ if __name__ == "__main__":
     parser.add_argument('-e', '--estacao', nargs='+', type=lambda s: s.lower(), 
                         help='Nome da estação ou lista de estações', default=[])
     parser.add_argument('-hist', '--historico', 
-                        type=lambda x: bool(strtobool(x)), default=False ,
+                        type=lambda x: bool(strtobool(x)), 
                         help='Se True, irá buscar os dados históricos')
     parser.add_argument('-ano', '--ano', type=int, default=2023,
                         help='Ano para buscar os dados')
     parser.add_argument('-tipo', '--tipo', type=str,
                 help='Tipo de dado a ser buscado. Aceita: SD, MD, WD, INDEFINIDO, TD',
                 choices=['SD', 'MD', 'WD', 'INDEFINIDO', 'TD'])
+    # Crie um parametro para exibir os dados
+    parser.add_argument('-exibir', '--exibir', action='store_true',
+                        help='Exibe os dados filtrados')
 
     args = parser.parse_args()
     
@@ -29,8 +32,6 @@ if __name__ == "__main__":
             dat_files = json.load(f)
             dat_files_df = pd.DataFrame(dat_files)
             # cast column date to 
-
-
     else:
         print(f"Error: File '{dat_file_path}' not found.")
         exit(1)
@@ -47,5 +48,10 @@ if __name__ == "__main__":
     if args.tipo:
         dat_files_df = dat_files_df[dat_files_df['tipo'] == args.tipo]
 
-    print(dat_files_df.date.unique())
+    # Exibe the filtered data
+    if args.exibir:
+        print(dat_files_df)
+
+
+    # print(dat_files_df.date.unique())
     

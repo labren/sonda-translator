@@ -5,10 +5,16 @@ import re
 from tqdm import tqdm
 import threading
 import concurrent.futures
+import collections
 
 # Adicionar variável global para contagem
-contador_global = 0
+contador_global = 1
 contador_lock = threading.Lock()
+
+# Pré-compilar expressões regulares para maior eficiência
+PADRAO_ANO_CAMINHO = re.compile(r'/(\d{4})(?:/|$)')
+PADRAO_ANO_ARQUIVO_1 = re.compile(r'_(\d{4})_')
+PADRAO_ANO_ARQUIVO_2 = re.compile(r'(\d{2})(\d{2})')
 
 def determinar_tipo(nome_arquivo):
     """Determina o tipo de dado baseado no padrão do nome do arquivo"""
@@ -16,7 +22,7 @@ def determinar_tipo(nome_arquivo):
     
     if '_AMB.DAT' in nome_arquivo or '_MD.DAT' in nome_arquivo:
         return 'MD'
-    elif '_RAD.DAT' in nome_arquivo or '_SD.DAT' in nome_arquivo:
+    elif '_RAD_01.DAT' in nome_arquivo or '_SD.DAT' in nome_arquivo:
         return 'SD'
     elif '_TD.DAT' in nome_arquivo:
         return 'TD'
@@ -28,7 +34,7 @@ def determinar_tipo(nome_arquivo):
 def extrair_ano(caminho_completo, nome_arquivo):
     """Extrai o ano do caminho ou do nome do arquivo"""
     # Procurar por um ano de 4 dígitos no caminho (formato mais flexível)
-    match = re.search(r'/(\d{4})(?:/|$)', caminho_completo)
+    match = PADRAO_ANO_CAMINHO.search(caminho_completo)
     if match:
         ano = match.group(1)
         # Verificar se é um ano válido (entre 1900 e o ano atual)
@@ -36,12 +42,12 @@ def extrair_ano(caminho_completo, nome_arquivo):
             return int(ano)
     
     # Procurar no nome do arquivo por padrões como CPA_2020_092_a_121.dat
-    match = re.search(r'_(\d{4})_', nome_arquivo)
+    match = PADRAO_ANO_ARQUIVO_1.search(nome_arquivo)
     if match:
         return int(match.group(1))
     
     # Se não encontrou com o padrão anterior, procurar no nome do arquivo
-    match = re.search(r'(\d{2})(\d{2})', nome_arquivo)
+    match = PADRAO_ANO_ARQUIVO_2.search(nome_arquivo)
     if match:
         possivel_ano_2_digitos = match.group(1)
         # Converter ano de 2 dígitos para 4 dígitos (20XX ou 19XX)
@@ -60,18 +66,23 @@ def processar_arquivo(args):
     
     caminho_completo = args
     arquivo = os.path.basename(caminho_completo)
+    
+    # Otimização: apenas dividir o caminho uma vez e armazenar o resultado
     partes_caminho = caminho_completo.split('/')
     
     # Extrair estação (diretório após 'coleta')
-    indice_coleta = partes_caminho.index('coleta') if 'coleta' in partes_caminho else -1
-    
-    if indice_coleta != -1 and indice_coleta + 1 < len(partes_caminho):
-        estacao = partes_caminho[indice_coleta + 1]
-    else:
+    try:
+        indice_coleta = partes_caminho.index('coleta')
+        if indice_coleta + 1 < len(partes_caminho):
+            estacao = partes_caminho[indice_coleta + 1]
+        else:
+            estacao = "desconhecido"
+    except ValueError:
         estacao = "desconhecido"
     
-    # Verificar se é histórico (verifica se contém a palavra 'historico' no caminho)
-    is_historico = 'historico' in caminho_completo.lower()
+    # Verificar se é histórico (contém 'historico' ou 'coleta_manual' no caminho)
+    caminho_lower = caminho_completo.lower()
+    is_historico = 'historico' in caminho_lower or 'coleta_manual' in caminho_lower
     
     # Determinar tipo com base nos padrões especificados
     tipo = determinar_tipo(arquivo)
@@ -151,18 +162,18 @@ def encontrar_arquivos_dat(diretorio_base, extensao=".dat"):
     print(f"Encontrados {len(todos_arquivos)} arquivos {extensao} no total")
     return todos_arquivos
 
-def processar_lote(lote, pbar, resultados, lock):
-    """Processa um lote de arquivos e atualiza o progresso"""
-    lote_resultados = []
-    for caminho in lote:
+def processar_arquivos_estacao(arquivos_estacao, estacao, pbar, resultados_finais, lock):
+    """Processa todos os arquivos de uma estação específica"""
+    resultados_estacao = []
+    for caminho in arquivos_estacao:
         resultado = processar_arquivo(caminho)
-        lote_resultados.append(resultado)
+        resultados_estacao.append(resultado)
         with lock:
             pbar.update(1)
     
     # Adicionar resultados à lista compartilhada de forma thread-safe
     with lock:
-        resultados.extend(lote_resultados)
+        resultados_finais.extend(resultados_estacao)
 
 def listar_arquivos_dat():
     inicio = time.time()
@@ -175,31 +186,68 @@ def listar_arquivos_dat():
     if not caminhos_arquivos:
         return []
     
-    # Processar arquivos em paralelo com barra de progresso melhorada
-    print("Processando informações dos arquivos em paralelo...")
-    num_workers = os.cpu_count() * 4  # Multiplicador para tarefas I/O bound
+    # OTIMIZAÇÃO: Agrupar arquivos por estação antes do processamento
+    print("Agrupando arquivos por estação...")
+    arquivos_por_estacao = collections.defaultdict(list)
     
-    # Dividir arquivos em lotes para melhor balanceamento
-    tamanho_lote = max(1, len(caminhos_arquivos) // (num_workers * 2))
-    lotes = [caminhos_arquivos[i:i+tamanho_lote] for i in range(0, len(caminhos_arquivos), tamanho_lote)]
+    # Identificar estação baseada no caminho
+    for caminho in caminhos_arquivos:
+        partes = caminho.split('/')
+        try:
+            idx = partes.index('coleta')
+            if idx + 1 < len(partes):
+                estacao = partes[idx + 1]
+            else:
+                estacao = "desconhecido"
+        except ValueError:
+            estacao = "desconhecido"
+        
+        arquivos_por_estacao[estacao].append(caminho)
     
+    print(f"Arquivos agrupados em {len(arquivos_por_estacao)} estações")
+    
+    # Ajustar workers com base no número de CPUs disponíveis
+    num_workers = os.cpu_count() * 2
     resultados = []
-    lock = threading.Lock()  # Lock para acesso thread-safe à barra de progresso e resultados
+    lock = threading.Lock()
     
     # Usar barra de progresso compartilhada
     with tqdm(total=len(caminhos_arquivos), desc="Processando arquivos", unit="arquivo") as pbar:
-        threads = []
-        for lote in lotes:
-            thread = threading.Thread(
-                target=processar_lote,
-                args=(lote, pbar, resultados, lock)
-            )
-            threads.append(thread)
-            thread.start()
-        
-        # Aguardar todas as threads terminarem
-        for thread in threads:
-            thread.join()
+        # OTIMIZAÇÃO: Processar cada estação separadamente em paralelo
+        with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
+            futures = []
+            
+            for estacao, arquivos_estacao in arquivos_por_estacao.items():
+                # Para estações com muitos arquivos, dividir em múltiplos lotes
+                tamanho_lote = 100  # Tamanho de lote fixo para melhor balanceamento
+                
+                # Se a estação tiver poucos arquivos, processá-los em um único lote
+                if len(arquivos_estacao) <= tamanho_lote:
+                    future = executor.submit(
+                        processar_arquivos_estacao, 
+                        arquivos_estacao, 
+                        estacao, 
+                        pbar, 
+                        resultados, 
+                        lock
+                    )
+                    futures.append(future)
+                else:
+                    # Dividir arquivos de estações grandes em lotes menores
+                    for i in range(0, len(arquivos_estacao), tamanho_lote):
+                        lote = arquivos_estacao[i:i+tamanho_lote]
+                        future = executor.submit(
+                            processar_arquivos_estacao, 
+                            lote, 
+                            f"{estacao} (lote {i//tamanho_lote+1})", 
+                            pbar, 
+                            resultados, 
+                            lock
+                        )
+                        futures.append(future)
+            
+            # Aguardar a conclusão de todos os futures
+            concurrent.futures.wait(futures)
     
     fim = time.time()
     print(f"Tempo de processamento: {fim - inicio:.2f} segundos")
@@ -209,6 +257,10 @@ def listar_arquivos_dat():
 def salvar_json(dados, nome_arquivo="json/arquivos_dat.json"):
     """Salva os dados em um arquivo JSON"""
     print(f"Salvando {len(dados)} registros em {nome_arquivo}...")
+    
+    # Garantir que o diretório exista
+    os.makedirs(os.path.dirname(nome_arquivo), exist_ok=True)
+    
     with open(nome_arquivo, 'w', encoding='utf-8') as f:
         json.dump(dados, f, indent=2)
     print(f"✓ Dados salvos com sucesso em {nome_arquivo}")
@@ -232,7 +284,7 @@ def salvar_estatisticas(total_arquivos, estacoes, tipos, datas, historicos, temp
             f.write(f"  {tipo}: {contagem}\n")
         
         f.write("\nArquivos por ano:\n")
-        for data, contagem in sorted(datas.items(), key=lambda x: (x[0] != 'INDEFINIDO', x[0])):
+        for data, contagem in sorted(datas.items(), key=lambda x: (x[0] != 1900, x[0])):
             f.write(f"  {data}: {contagem}\n")
         
         f.write("\nArquivos históricos vs. atuais:\n")
@@ -257,10 +309,6 @@ def main():
         if not arquivos_dat:
             print("Nenhum arquivo .dat encontrado no diretório ftp/restricted/coleta/")
             return
-        
-        # Adicionar contador único (ID) para cada arquivo
-        for idx, arquivo in enumerate(arquivos_dat, 1):
-            arquivo["id"] = idx
         
         # Salvar no arquivo JSON
         salvar_json(arquivos_dat)
@@ -303,8 +351,7 @@ def main():
             print(f"  {tipo}: {contagem}")
         
         print("\nArquivos por ano:")
-        anos_ordenados = sorted(datas.items(), key=lambda item: (item[0] != 
-            1900, item[0]))
+        anos_ordenados = sorted(datas.items(), key=lambda item: (item[0] != 1900, item[0]))
         for data, contagem in anos_ordenados:
             print(f"  {data}: {contagem}")
             
