@@ -3,7 +3,9 @@ import duckdb
 import logging
 import pandas as pd
 import json
-from datetime import datetime
+import pathlib
+
+pd.set_option('future.no_silent_downcasting', True)
 
 # Configuração do logger
 def setup_logger():
@@ -27,7 +29,7 @@ global headers, header_sensor
 script_dir = os.path.dirname(os.path.abspath(__file__))
 dat_file_path = os.path.join(script_dir, 'json', 'cabecalhos.json')
 # Carrega o arquivo JSON com os sensores
-header_sensor_path = os.path.join(script_dir, 'json', 'cabecalhos_sensor.json')
+header_sensor_path = os.path.join(script_dir, 'json', 'cabecalho_sensor.json')
 # Carrega o arquivo JSON com os cabeçalhos
 if os.path.exists(dat_file_path):
     with open(dat_file_path, 'r') as f:
@@ -39,7 +41,7 @@ if os.path.exists(header_sensor_path):
 
 
 def lerArquivo(args):
-    file_path, file_type = args
+    file_path, estacao, file_type, output_dir, overwrite = args
 
     # Check if the file exists
     if not os.path.exists(file_path):
@@ -126,4 +128,54 @@ def lerArquivo(args):
     for key in main_header.keys():
         result[key] = data.get(key, pd.NA)
 
+    # Adiciona o nome da estacao na coluna acronym para todos os nans de acronym
+    result['acronym'] = estacao[0].upper()
+
+    # Para a coluna 'day', você deve converter timestamp para datetime e extrair o dia juliano
+    result['timestamp'] = pd.to_datetime(result['timestamp'], errors='coerce')
+    result['day'] = result['timestamp'].dt.dayofyear
+
+    # Para todos os outros valores nans, preenche com o valor -5555
+    result.fillna(-5555.0, inplace=True)
+
+    # Pega cabecalho_sensor e adiciona como subcabeçalho
+    sub_header = header_sensor[estacao[0]][file_type]
+    sub_header = ['', '', '', '', ''] + sub_header
+    # Adiciona o subcabeçalho ao DataFrame
+    result.columns = pd.MultiIndex.from_tuples(list(zip(result.columns,sub_header)))
+
+    # Encontr atipo completo baseado no file_type
+    # Caso MD, o tipo é Meteorologico
+    # Caso SD, o tipo é Solarimetrico
+    # Caso WD, o tipo é Anemometrico
+    tipo_completo = ''
+    if file_type == 'MD':
+        tipo_completo = 'Meteorologico'
+    elif file_type == 'SD':
+        tipo_completo = 'Solarimetrico'
+    elif file_type == 'WD':
+        tipo_completo = 'Anemometrico'
+
+    # Agrupa por mês e cria um loop para criar os arquivos
+    result_groups = result.groupby(result['timestamp'].dt.to_period('M'))
+    for period, group in result_groups:
+        # Cria o nome do arquivo, o padrão é: SMS_YYYY_MM_SD_formatado.csv
+        file_name = f"{estacao[0].upper()}_{period.year}_{period.month:02d}_{file_type}_formatado.csv"
+        # O output_path será sempre output_dir + estacao + tipo_completo + ano
+        output_path = os.path.join(output_dir, estacao[0].upper(), tipo_completo, str(period.year))
+        # Verifica se o arquivo já existe, caso exista verifica flag de overwrite, acaso não exista, cria o arquivo, caso exista e a flag overwrite for False, pula a criação do arquivo
+        file_path = os.path.join(output_path, file_name)
+        # Cria diretorio caso não exista
+        pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
+        if os.path.exists(file_path):
+            if not overwrite:
+                continue
+            else:
+                print(f"Arquivo {file_path} já existe. Sobrescrevendo.")
+                group.to_csv(file_path, index=False)
+        else:
+            print(f"Arquivo {file_path} não existe. Criando arquivo.")
+
+        break
+        
     

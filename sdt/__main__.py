@@ -27,6 +27,10 @@ if __name__ == "__main__":
                         help='Paraleliza o processamento dos arquivos')
     parser.add_argument('-id', '--id', type=int,
                         help='ID do arquivo a ser buscado')
+    parser.add_argument('-out', '--output', type=str, default='output',
+                        help='Caminho do arquivo de saída')
+    parser.add_argument('-ovrwrite', '--overwrite', action='store_true',
+                        help='Sobrescreve os arquivos existentes')
 
     args = parser.parse_args()
     
@@ -42,7 +46,7 @@ if __name__ == "__main__":
     else:
         print(f"Error: File '{dat_file_path}' not found.")
         exit(1)
-        
+
     # Apply filters based on parameters
     if args.estacao:
         dat_files_df = dat_files_df[dat_files_df['estacao'].str.lower().isin(args.estacao)]
@@ -80,7 +84,7 @@ if __name__ == "__main__":
         # Use multiprocessing to process files in parallel
         with Pool() as pool:
             results = []
-            for result in pool.imap(lerArquivo, zip(dat_files_to_process, dat_files_types)):
+            for result in pool.imap(lerArquivo, zip(dat_files_to_process, args.estacao, dat_files_types, args.output, args.overwrite)):
                 results.append(result)
                 pbar.update()
         pool.close()
@@ -88,7 +92,7 @@ if __name__ == "__main__":
     else:
         # Process files sequentially
         for file_path, file_type in zip(dat_files_to_process, dat_files_types):
-            lerArquivo((file_path, file_type))
+            lerArquivo((file_path, args.estacao, file_type, args.output, args.overwrite))
             break
             pbar.update()
     pbar.close()
