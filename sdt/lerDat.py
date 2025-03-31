@@ -99,5 +99,5 @@ def lerArquivo(args):
     # Agora, baseado no tipo iremos procurar o verdadeiro nome das colunas
     header_type = headers[file_type]
     
-    
+    print(data)
 
