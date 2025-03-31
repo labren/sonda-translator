@@ -22,14 +22,20 @@ def setup_logger():
 # Inicializa o logger
 logger = setup_logger()
 
+global headers, header_sensor
 # Carrega o arquivo JSON com os cabeçalhos
 script_dir = os.path.dirname(os.path.abspath(__file__))
 dat_file_path = os.path.join(script_dir, 'json', 'cabecalhos.json')
-
-global headers
+# Carrega o arquivo JSON com os sensores
+header_sensor_path = os.path.join(script_dir, 'json', 'cabecalhos_sensor.json')
+# Carrega o arquivo JSON com os cabeçalhos
 if os.path.exists(dat_file_path):
     with open(dat_file_path, 'r') as f:
         headers = json.load(f)
+# Carrega o arquivo JSON com os sensores
+if os.path.exists(header_sensor_path):
+    with open(header_sensor_path, 'r') as f:
+        header_sensor = json.load(f)
 
 
 def lerArquivo(args):
@@ -97,7 +103,27 @@ def lerArquivo(args):
     data.columns = header_row
 
     # Agora, baseado no tipo iremos procurar o verdadeiro nome das colunas
-    header_type = headers[file_type]
+    main_header = headers[file_type]
     
-    print(data)
+    # Create a mapping dictionary for column name normalization
+    normalized_headers = {}
+    for key, values in main_header.items():
+        for value in values:
+            normalized_headers[value.strip().upper()] = key
+    
+    # Rename columns using the mapping dictionary
+    renamed_columns = {}
+    for col in data.columns:
+        if str(col).strip().upper() in normalized_headers:
+            renamed_columns[col] = normalized_headers[str(col).strip().upper()]
+    
+    # Apply the rename operation only once
+    if renamed_columns:
+        data = data.rename(columns=renamed_columns)
+    
+    # Create result DataFrame with columns in the correct order, filling missing ones with NA
+    result = pd.DataFrame()
+    for key in main_header.keys():
+        result[key] = data.get(key, pd.NA)
 
+    

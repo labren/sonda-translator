@@ -42,7 +42,7 @@ if __name__ == "__main__":
     else:
         print(f"Error: File '{dat_file_path}' not found.")
         exit(1)
-
+        
     # Apply filters based on parameters
     if args.estacao:
         dat_files_df = dat_files_df[dat_files_df['estacao'].str.lower().isin(args.estacao)]

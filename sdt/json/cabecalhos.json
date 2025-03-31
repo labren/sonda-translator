@@ -53,5 +53,45 @@
         "ws10_std": ["WS10_STD", "ws10_std"],
         "wd10_avg": ["WD10_AVG", "wd10_avg"],
         "wd10_std": ["WD10_STD", "wd10_std"]
+    },
+    "WD":{
+        "acronym": [],
+        "timestamp": ["TIMESTAMP", "timestamp"],
+        "year": ["YEAR", "year"],
+        "day": ["DAY", "day"],
+        "min": ["MIN", "min"],
+        "ws10_avg": ["WS10_AVG", "ws10_avg"],
+        "ws10_std": ["WS10_STD", "ws10_std"],
+        "ws10_min": ["WS10_MIN", "ws10_min"],
+        "ws10_max": ["WS10_MAX", "ws10_max"],
+        "wd10_avg": ["WD10_AVG", "wd10_avg"],
+        "wd10_std": ["WD10_STD", "wd10_std"],
+        "ws25_avg": ["WS25_AVG", "ws25_avg"],
+        "ws25_std": ["WS25_STD", "ws25_std"],
+        "ws25_min": ["WS25_MIN", "ws25_min"],
+        "ws25_max": ["WS25_MAX", "ws25_max"],
+        "wd25_avg": ["WD25_AVG", "wd25_avg"],
+        "wd25_std": ["WD25_STD", "wd25_std"],
+        "tp_25": ["TP_25", "tp_25"],
+        "ws50_avg": ["WS50_AVG", "ws50_avg"],
+        "ws50_std": ["WS50_STD", "ws50_std"],
+        "ws50_min": ["WS50_MIN", "ws50_min"],
+        "ws50_max": ["WS50_MAX", "ws50_max"],
+        "wd50_avg": ["WD50_AVG", "wd50_avg"],
+        "wd50_std": ["WD50_STD", "wd50_std"],
+        "tp_50": ["TP_50", 	"tp_50"]
+    },
+    "CD":{
+        "acronym": [],
+        "timestamp": ["TIMESTAMP", "timestamp"],
+        "year": ["YEAR", "year"],
+        "day": ["DAY", "day"],
+        "min": ["MIN", "min"],
+        "cov_brbg": ["COV_BRBG", "cov_brbg"],
+        "cov_cdoc": ["COV_CDOC", "cov_cdoc"],
+        "cov_cdoc_thick": ["COV_CDOC_THICK", "cov_cdoc_thick"],
+        "cov_cdoc_thin": ["COV_CDOC_THIN", "cov_cdoc_thin"],
+        "cov_sun": ["COV_SUN", "cov_sun"]
     }
 }
+
