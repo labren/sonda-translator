@@ -47,8 +47,9 @@ if __name__ == "__main__":
     if args.estacao:
         dat_files_df = dat_files_df[dat_files_df['estacao'].str.lower().isin(args.estacao)]
     
-    # Filter by historical flag
-    dat_files_df = dat_files_df[dat_files_df['is_historico'] == args.historico]
+    # Filter by historical data if specified
+    if args.historico is not None:
+        dat_files_df = dat_files_df[dat_files_df['is_historico'] == args.historico]
     
     # Filter by type if specified
     if args.tipo:
@@ -64,7 +65,7 @@ if __name__ == "__main__":
 
     # Exibe the filtered data
     if args.exibir:
-        print(dat_files_df)
+        print(dat_files_df.reset_index(drop=True).to_string(index=False))
 
     # Pegue os dados que serão processados
     dat_files_to_process = dat_files_df['caminho'].tolist()
@@ -74,6 +75,7 @@ if __name__ == "__main__":
     # Monta barra de progresso
     pbar = tqdm.tqdm(total=len(dat_files_to_process), desc="Processing files", unit="file")
 
+    # Process files
     if args.paralelizar:
         # Use multiprocessing to process files in parallel
         with Pool() as pool:
