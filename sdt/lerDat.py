@@ -3,6 +3,7 @@ import duckdb
 import logging
 import pandas as pd
 import json
+import re
 import pathlib
 
 pd.set_option('future.no_silent_downcasting', True)
@@ -11,8 +12,16 @@ pd.set_option('future.no_silent_downcasting', True)
 def setup_logger():
     logger = logging.getLogger('sonda_translator')
     logger.setLevel(logging.ERROR)
-    
-    log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "error_log.txt")
+
+    # Pega o diretório do script atual
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    # Caso o diretorio tenja o final com nome de sdt, volte uma pasta
+    if script_dir.endswith('sdt'):
+        script_dir = os.path.dirname(script_dir)
+    # Cria o arquivo no diretório do script
+    # O arquivo será chamado de error_log.txt
+    # e será criado na mesma pasta do script
+    log_file = os.path.join(script_dir, 'error_log.txt')
     file_handler = logging.FileHandler(log_file)
     
     formatter = logging.Formatter('----------------------------------------\nDATA DO PROCESSAMENTO: %(asctime)s\nError: %(message)s\n')
@@ -105,7 +114,12 @@ def lerArquivo(args):
     data.columns = header_row
 
     # Agora, baseado no tipo iremos procurar o verdadeiro nome das colunas
-    main_header = headers[file_type]
+    try:
+        main_header = headers[file_type]
+    except KeyError:
+        # Registra o erro usando o logger
+        logger.error(f"Tipo de arquivo inválido: {file_type} no arquivo {file_path}.")
+        return
     
     # Create a mapping dictionary for column name normalization
     normalized_headers = {}
@@ -118,6 +132,26 @@ def lerArquivo(args):
     for col in data.columns:
         if str(col).strip().upper() in normalized_headers:
             renamed_columns[col] = normalized_headers[str(col).strip().upper()]
+
+        # Caso tipo seja WD, reamostr para dados de 10 minutos, deixando apenas o primeiro
+    if file_type == 'WD':
+        # Encontra a coluna de timestamp
+        timestamp_col = None
+        for col in data.columns:
+            if 'TIMESTAMP' in str(col).upper():
+                timestamp_col = col
+                break
+        if timestamp_col is None:
+            # Registra o erro usando o logger
+            logger.error(f"Não foi possível encontrar a coluna de timestamp no arquivo {file_path}.")
+            return
+        # Converte a coluna de timestamp para datetime
+        data[timestamp_col] = pd.to_datetime(data[timestamp_col], errors='coerce')
+        # Encontra dados com intervalo de 1 minuto
+        one_minute = data[data[timestamp_col].diff().dt.total_seconds() == 60]
+        if not one_minute.empty:
+            # Registra o erro usando o logger
+            logger.error(f"Encontrados dados com intervalo de 1 minuto no arquivo {file_path}.")
     
     # Apply the rename operation only once
     if renamed_columns:
@@ -129,7 +163,31 @@ def lerArquivo(args):
         result[key] = data.get(key, pd.NA)
 
     # Adiciona o nome da estacao na coluna acronym para todos os nans de acronym
-    result['acronym'] = estacao[0].upper()
+    # Se estacao for uma lista vazia, entao pegue o nome a partir do nome do arquivo
+    if len(estacao) == 0:
+        # Extract station name using regex
+        estacao = re.findall(r'coleta[/\\]([A-Z]{3})', file_path)
+        if not estacao:
+            # Try to get from filename if not found in path
+            filename = os.path.basename(file_path)
+            estacao = re.findall(r'^([A-Z]{3})_', filename)
+            if not estacao:
+                # Use directory name as fallback
+                dirname = os.path.basename(os.path.dirname(file_path))
+                if dirname and len(dirname) >= 3:
+                    estacao = [dirname[:3]]
+                else:
+                    # Log error and exit function if station name can't be determined
+                    logger.error(f"Não foi possível determinar o nome da estação para o arquivo {file_path}.")
+                    return
+        # Se o tipo for uma lista, pega o primeiro elemento
+        if len(estacao) > 0:
+            estacao = estacao[0].upper()
+    else:
+        estacao = estacao[0].upper()
+    
+    # Adiciona o nome da estacao na coluna acronym para todos os nans de acronym
+    result['acronym'] = estacao
 
     # Para a coluna 'day', você deve converter timestamp para datetime e extrair o dia juliano
     result['timestamp'] = pd.to_datetime(result['timestamp'], errors='coerce')
@@ -139,11 +197,17 @@ def lerArquivo(args):
     result.fillna(-5555.0, inplace=True)
 
     # Pega cabecalho_sensor e adiciona como subcabeçalho
-    sub_header = header_sensor[estacao[0]][file_type]
+    try:
+        sub_header = header_sensor[estacao][file_type]
+    except KeyError:
+        # Registra o erro usando o logger
+        logger.error(f"Não foi possível encontrar o subcabeçalho para a estação {estacao} e tipo {file_type}.")
+        # Crie um subcabeçalho vazio
+        sub_header = [''] * len(result.columns)
+    # Adiciona o subcabeçalho ao DataFrame
     sub_header = ['', '', '', '', ''] + sub_header
     # Adiciona o subcabeçalho ao DataFrame
     result.columns = pd.MultiIndex.from_tuples(list(zip(result.columns,sub_header)))
-
     # Encontr atipo completo baseado no file_type
     # Caso MD, o tipo é Meteorologico
     # Caso SD, o tipo é Solarimetrico
@@ -160,9 +224,9 @@ def lerArquivo(args):
     result_groups = result.groupby(result['timestamp'].dt.to_period('M'))
     for period, group in result_groups:
         # Cria o nome do arquivo, o padrão é: SMS_YYYY_MM_SD_formatado.csv
-        file_name = f"{estacao[0].upper()}_{period.year}_{period.month:02d}_{file_type}_formatado.csv"
+        file_name = f"{estacao.upper()}_{period.year}_{period.month:02d}_{file_type}_formatado.csv"
         # O output_path será sempre output_dir + estacao + tipo_completo + ano
-        output_path = os.path.join(output_dir, estacao[0].upper(), tipo_completo, str(period.year))
+        output_path = os.path.join(output_dir, estacao.upper(), tipo_completo, str(period.year))
         # Verifica se o arquivo já existe, caso exista verifica flag de overwrite, acaso não exista, cria o arquivo, caso exista e a flag overwrite for False, pula a criação do arquivo
         file_path = os.path.join(output_path, file_name)
         # Cria diretorio caso não exista
@@ -171,11 +235,11 @@ def lerArquivo(args):
             if not overwrite:
                 continue
             else:
-                print(f"Arquivo {file_path} já existe. Sobrescrevendo.")
                 group.to_csv(file_path, index=False)
         else:
-            print(f"Arquivo {file_path} não existe. Criando arquivo.")
+            # Cria diretorio caso não exista
+            pathlib.Path(output_path).mkdir(parents=True, exist_ok=True)
+            # Cria o arquivo
+            group.to_csv(file_path, index=False)
 
-        break
-        
     

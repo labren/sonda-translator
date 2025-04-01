@@ -31,7 +31,8 @@ if __name__ == "__main__":
                         help='Caminho do arquivo de saída')
     parser.add_argument('-ovrwrite', '--overwrite', action='store_true',
                         help='Sobrescreve os arquivos existentes')
-
+    parser.add_argument('-ftp_dir', '--ftp_dir', type=str, default='/media/helvecioneto/Barracuda/',
+                        help='Diretório de onde estarão os arquivos a serem processados')
     args = parser.parse_args()
     
     # Get the directory where the script is located
@@ -42,11 +43,15 @@ if __name__ == "__main__":
         with open(dat_file_path, 'r') as f:
             dat_files = json.load(f)
             dat_files_df = pd.DataFrame(dat_files)
-            # cast column date to 
+            if args.ftp_dir:
+                # Update the 'caminho' column with the FTP directory
+                dat_files_df['caminho'] = dat_files_df['caminho'].apply(lambda x: os.path.join(args.ftp_dir, x))
     else:
         print(f"Error: File '{dat_file_path}' not found.")
         exit(1)
 
+    # Remove all TD types from the dataframe
+    dat_files_df = dat_files_df[dat_files_df['tipo'] != 'TD']
     # Apply filters based on parameters
     if args.estacao:
         dat_files_df = dat_files_df[dat_files_df['estacao'].str.lower().isin(args.estacao)]
@@ -93,7 +98,6 @@ if __name__ == "__main__":
         # Process files sequentially
         for file_path, file_type in zip(dat_files_to_process, dat_files_types):
             lerArquivo((file_path, args.estacao, file_type, args.output, args.overwrite))
-            break
             pbar.update()
     pbar.close()
     # Finalize the progress bar
