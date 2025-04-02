@@ -5,8 +5,10 @@ import pandas as pd
 import json
 import re
 import pathlib
+# ignore all warnings
+import warnings
+warnings.filterwarnings("ignore")
 
-pd.set_option('future.no_silent_downcasting', True)
 
 # Configuração do logger
 def setup_logger():
@@ -111,7 +113,12 @@ def lerArquivo(args):
         return
     
     # Adiciona o cabeçalho encontrado ao DataFrame
-    data.columns = header_row
+    try:
+        data.columns = header_row
+    except Exception as e:
+        # Registra o erro usando o logger
+        logger.error(f"Não foi possível adicionar o cabeçalho ao arquivo {file_path}.\nDetalhes do erro: {str(e)} Os dados {data}")
+        return
 
     # Agora, baseado no tipo iremos procurar o verdadeiro nome das colunas
     try:
@@ -162,32 +169,33 @@ def lerArquivo(args):
     for key in main_header.keys():
         result[key] = data.get(key, pd.NA)
 
-    # Adiciona o nome da estacao na coluna acronym para todos os nans de acronym
-    # Se estacao for uma lista vazia, entao pegue o nome a partir do nome do arquivo
-    if len(estacao) == 0:
-        # Extract station name using regex
-        estacao = re.findall(r'coleta[/\\]([A-Z]{3})', file_path)
-        if not estacao:
-            # Try to get from filename if not found in path
-            filename = os.path.basename(file_path)
-            estacao = re.findall(r'^([A-Z]{3})_', filename)
-            if not estacao:
-                # Use directory name as fallback
-                dirname = os.path.basename(os.path.dirname(file_path))
-                if dirname and len(dirname) >= 3:
-                    estacao = [dirname[:3]]
-                else:
-                    # Log error and exit function if station name can't be determined
-                    logger.error(f"Não foi possível determinar o nome da estação para o arquivo {file_path}.")
-                    return
-        # Se o tipo for uma lista, pega o primeiro elemento
-        if len(estacao) > 0:
+    try:
+        # Adiciona o nome da estacao na coluna acronym para todos os nans de acronym
+        # Se estacao for uma lista vazia, entao pegue o nome a partir do nome do arquivo
+        if len(estacao) == 0:
+            # Extraia a estacao usando regex, a estacao sempre será 3 letras após a coleta/ {estacao} e seguido de /.
+            estacao = re.findall(r'/coleta/([^/]+)/', file_path)
+            if len(estacao) > 0:
+                estacao = estacao[0].upper()
+            else:
+                # Divida o caminho do arquivo em / e verifique em um laço logo apos /coleta/ o nome da estacao.
+                estacoes = file_path.split('/')
+                for i, estacao in enumerate(estacoes):
+                    if 'coleta' in estacao:
+                        # Verifica se o proximo elemento é uma estacao
+                        if i + 1 < len(estacoes):
+                            estacao = estacoes[i + 1].upper()
+                            break
+                estacao = estacao[0].upper()
+        else:
             estacao = estacao[0].upper()
-    else:
-        estacao = estacao[0].upper()
-    
-    # Adiciona o nome da estacao na coluna acronym para todos os nans de acronym
-    result['acronym'] = estacao
+        
+        # Adiciona o nome da estacao na coluna acronym para todos os nans de acronym
+        result['acronym'] = estacao
+    except Exception as e:
+        # Registra o erro usando o logger
+        logger.error(f"Não foi possível adicionar o nome da estação no arquivo {file_path}.\nDetalhes do erro: {str(e)}")
+        return
 
     # Para a coluna 'day', você deve converter timestamp para datetime e extrair o dia juliano
     result['timestamp'] = pd.to_datetime(result['timestamp'], errors='coerce')
@@ -201,7 +209,7 @@ def lerArquivo(args):
         sub_header = header_sensor[estacao][file_type]
     except KeyError:
         # Registra o erro usando o logger
-        logger.error(f"Não foi possível encontrar o subcabeçalho para a estação {estacao} e tipo {file_type}.")
+        # logger.error(f"Não foi possível encontrar o subcabeçalho para a estação {estacao} e tipo {file_type}.")
         # Crie um subcabeçalho vazio
         sub_header = [''] * len(result.columns)
     # Adiciona o subcabeçalho ao DataFrame
@@ -220,26 +228,29 @@ def lerArquivo(args):
     elif file_type == 'WD':
         tipo_completo = 'Anemometrico'
 
-    # Agrupa por mês e cria um loop para criar os arquivos
-    result_groups = result.groupby(result['timestamp'].dt.to_period('M'))
-    for period, group in result_groups:
-        # Cria o nome do arquivo, o padrão é: SMS_YYYY_MM_SD_formatado.csv
-        file_name = f"{estacao.upper()}_{period.year}_{period.month:02d}_{file_type}_formatado.csv"
-        # O output_path será sempre output_dir + estacao + tipo_completo + ano
-        output_path = os.path.join(output_dir, estacao.upper(), tipo_completo, str(period.year))
-        # Verifica se o arquivo já existe, caso exista verifica flag de overwrite, acaso não exista, cria o arquivo, caso exista e a flag overwrite for False, pula a criação do arquivo
-        file_path = os.path.join(output_path, file_name)
-        # Cria diretorio caso não exista
-        pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
-        if os.path.exists(file_path):
-            if not overwrite:
-                continue
-            else:
-                group.to_csv(file_path, index=False)
-        else:
+    try:
+        # Agrupa por mês e cria um loop para criar os arquivos
+        result_groups = result.groupby(result['timestamp'].dt.to_period('M'))
+        for period, group in result_groups:
+            # Cria o nome do arquivo, o padrão é: SMS_YYYY_MM_SD_formatado.csv
+            file_name = f"{estacao.upper()}_{period.year}_{period.month:02d}_{file_type}_formatado.csv"
+            # O output_path será sempre output_dir + estacao + tipo_completo + ano
+            output_path = os.path.join(output_dir, estacao.upper(), tipo_completo, str(period.year))
+            # Verifica se o arquivo já existe, caso exista verifica flag de overwrite, acaso não exista, cria o arquivo, caso exista e a flag overwrite for False, pula a criação do arquivo
+            file_path = os.path.join(output_path, file_name)
             # Cria diretorio caso não exista
-            pathlib.Path(output_path).mkdir(parents=True, exist_ok=True)
-            # Cria o arquivo
-            group.to_csv(file_path, index=False)
-
-    
+            pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
+            if os.path.exists(file_path):
+                if not overwrite:
+                    continue
+                else:
+                    group.to_csv(file_path, index=False)
+            else:
+                # Cria diretorio caso não exista
+                pathlib.Path(output_path).mkdir(parents=True, exist_ok=True)
+                # Cria o arquivo
+                group.to_csv(file_path, index=False)
+    except:
+        # Registra o erro usando o logger
+        logger.error(f"Não foi possível criar o arquivo {file_path} durante o processo de salvar os dados.\nDetalhes do erro: {result}")
+        return

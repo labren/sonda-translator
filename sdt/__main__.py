@@ -27,7 +27,7 @@ if __name__ == "__main__":
                         help='Paraleliza o processamento dos arquivos')
     parser.add_argument('-id', '--id', type=int,
                         help='ID do arquivo a ser buscado')
-    parser.add_argument('-out', '--output', type=str, default='output',
+    parser.add_argument('-out', '--output', type=str, default='/media/helvecioneto/Barracuda/sonda-formatados/',
                         help='Caminho do arquivo de saída')
     parser.add_argument('-ovrwrite', '--overwrite', action='store_true',
                         help='Sobrescreve os arquivos existentes')
@@ -87,9 +87,14 @@ if __name__ == "__main__":
     # Process files
     if args.paralelizar:
         # Use multiprocessing to process files in parallel
-        with Pool() as pool:
+        with Pool(6) as pool:
             results = []
-            for result in pool.imap(lerArquivo, zip(dat_files_to_process, args.estacao, dat_files_types, args.output, args.overwrite)):
+            for result in pool.imap(lerArquivo, 
+                                    zip(dat_files_to_process, 
+                                        [args.estacao] * len(dat_files_to_process), 
+                                        dat_files_types, 
+                                        [args.output] * len(dat_files_to_process), 
+                                        [args.overwrite] * len(dat_files_to_process))):
                 results.append(result)
                 pbar.update()
         pool.close()
