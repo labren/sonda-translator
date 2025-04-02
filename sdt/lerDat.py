@@ -222,11 +222,11 @@ def lerArquivo(args):
     # Caso WD, o tipo é Anemometrico
     tipo_completo = ''
     if file_type == 'MD':
-        tipo_completo = 'Meteorologico'
+        tipo_completo = 'Meteorologicos'
     elif file_type == 'SD':
-        tipo_completo = 'Solarimetrico'
+        tipo_completo = 'Solarimetricos'
     elif file_type == 'WD':
-        tipo_completo = 'Anemometrico'
+        tipo_completo = 'Anemometricos'
 
     try:
         # Agrupa por mês e cria um loop para criar os arquivos
