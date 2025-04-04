@@ -120,7 +120,6 @@ if __name__ == "__main__":
                         file_type, args.output,
                         args.overwrite, logger, headers, header_sensor))
             pbar.update()
-            break
     pbar.close()
     print("Processing complete.")
 

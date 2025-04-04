@@ -164,9 +164,6 @@ def processarArquivo(args):
     sub_header = ['', '', '', '', ''] + sub_header
     result.columns = pd.MultiIndex.from_tuples(list(zip(result.columns,sub_header)))
 
-
-    exit()
-
     # Encontr atipo completo baseado no file_type
     # Caso MD, o tipo é Meteorologico
     # Caso SD, o tipo é Solarimetrico
