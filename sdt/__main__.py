@@ -5,7 +5,9 @@ import pandas as pd
 import tqdm
 from distutils.util import strtobool
 from multiprocessing import Pool
-from lerDat import lerArquivo
+from carregaCabecalhos import carregaCabecalhos
+from logger import setup_logger
+from processaDado import processarArquivo
 
 
 if __name__ == "__main__":
@@ -80,6 +82,13 @@ if __name__ == "__main__":
     dat_files_to_process = dat_files_df['caminho'].tolist()
     # Pegue os tipos de dados que serão processados
     dat_files_types = dat_files_df['tipo'].tolist()
+    # Pega todas as estações que serão processadas
+    dat_files_stations = dat_files_df['estacao'].tolist()
+
+    # Configura o logger
+    logger = setup_logger()
+    # Carrega os cabeçalhos e os sensores a partir de arquivos JSON.
+    headers, header_sensor = carregaCabecalhos()
 
     # Monta barra de progresso
     pbar = tqdm.tqdm(total=len(dat_files_to_process), desc="Processing files", unit="file")
@@ -89,23 +98,30 @@ if __name__ == "__main__":
         # Use multiprocessing to process files in parallel
         with Pool(6) as pool:
             results = []
-            for result in pool.imap(lerArquivo, 
+            for result in pool.imap(processarArquivo, 
                                     zip(dat_files_to_process, 
-                                        [args.estacao] * len(dat_files_to_process), 
+                                        dat_files_stations,
                                         dat_files_types, 
                                         [args.output] * len(dat_files_to_process), 
-                                        [args.overwrite] * len(dat_files_to_process))):
+                                        [args.overwrite] * len(dat_files_to_process),
+                                        [logger] * len(dat_files_to_process),
+                                        [headers] * len(dat_files_to_process),
+                                        [header_sensor] * len(dat_files_to_process))):
                 results.append(result)
                 pbar.update()
         pool.close()
         pool.join()
     else:
         # Process files sequentially
-        for file_path, file_type in zip(dat_files_to_process, dat_files_types):
-            lerArquivo((file_path, args.estacao, file_type, args.output, args.overwrite))
+        for file_path, file_type, estacao in zip(dat_files_to_process,
+                                        dat_files_types,
+                                        dat_files_stations):
+            processarArquivo((file_path, estacao,
+                        file_type, args.output,
+                        args.overwrite, logger, headers, header_sensor))
             pbar.update()
+            break
     pbar.close()
-    # Finalize the progress bar
     print("Processing complete.")
 
 
