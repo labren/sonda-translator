@@ -82,25 +82,24 @@ def prequalificarDado(df, tipo_dado, logger, estacao, output_dir):
     cols = problem_data.columns.tolist()
     cols.insert(0, cols.pop(cols.index('problem_type')))
     problem_data = problem_data[cols]
-    # Volta um diretorio do output_dir e cria o diretorio sonda_quarentena
-    output_dir = pathlib.Path(output_dir).parent / 'sonda_quarentena'
-    # Cria o nome do arquivo output_dir/estacao/ano/mes/dia/estacao_ano_mes_dia_problemas.csv
-    estacao = estacao.upper()
-    output_dir = output_dir / estacao
-    # Cria o nome do arquivo
-    problem_file = output_dir / f"{estacao}_{"_problemas"}.csv"
-    # Verifica se o diretório já existe
-    if not output_dir.exists():
+    if not problem_data.empty:
+        # Volta um diretorio do output_dir e cria o diretorio sonda_quarentena
+        output_dir = pathlib.Path(output_dir).parent / 'sonda_quarentena'
+        # Cria o nome do arquivo output_dir/estacao/ano/mes/dia/estacao_ano_mes_dia_problemas.csv
+        estacao = estacao.upper()
+        output_dir = output_dir / estacao
+        # Cria o nome do arquivo
+        problem_file = output_dir / f"{estacao}_problemas.csv"
         # Cria o diretório se não existir
-        pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
-    else:
-        # Se o diretório já existe, verifica se o arquivo já existe
+        output_dir.mkdir(parents=True, exist_ok=True)
+        # Remove o arquivo existente, se houver cria um novo acrescentando _n
         if problem_file.exists():
-            # Se o arquivo já existe, sobrescreve
-            problem_file.unlink()
-    # Salva os dados problemáticos em um arquivo CSV
-    problem_data.to_csv(problem_file, index=False)
-
+            i = 1
+            while problem_file.exists():
+                problem_file = output_dir / f"{estacao}_problemas_{i}.csv"
+                i += 1        
+        # Salva os dados problemáticos em um arquivo CSV
+        problem_data.to_csv(problem_file, index=False)
 
     return good_data
 
