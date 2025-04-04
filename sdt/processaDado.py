@@ -140,7 +140,7 @@ def processarArquivo(args):
         logger.error(f"Error 5 - O arquivo {file_path} contém colunas que não foram processadas: {outros_dados.columns.tolist()}")
 
     # Adiciona colunas extras ao DataFrame
-    result['acronym'] = estacao
+    result['acronym'] = estacao.upper()
     result['timestamp'] = pd.to_datetime(result['timestamp'], errors='coerce')
     result['year'] = result['timestamp'].dt.year
     result['day'] = result['timestamp'].dt.dayofyear
