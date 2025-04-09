@@ -77,6 +77,7 @@ if __name__ == "__main__":
     # Exibe the filtered data
     if args.exibir:
         print(dat_files_df.reset_index(drop=True).to_string(index=False))
+        exit()
 
     # Pegue os dados que serão processados
     dat_files_to_process = dat_files_df['caminho'].tolist()

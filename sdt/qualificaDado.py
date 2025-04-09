@@ -79,9 +79,9 @@ def prequalificarDado(df, tipo_dado, logger, estacao, output_dir):
     problem_data.drop(columns=['data'], inplace=True)
 
     # move a coluna 'problem_type' para o inicio do DataFrame
-    cols = problem_data.columns.tolist()
-    cols.insert(0, cols.pop(cols.index('problem_type')))
-    problem_data = problem_data[cols]
+    # cols = problem_data.columns.tolist()
+    # cols.insert(0, cols.pop(cols.index('problem_type')))
+    # problem_data = problem_data[cols]
     if not problem_data.empty:
         # Volta um diretorio do output_dir e cria o diretorio sonda_quarentena
         output_dir = pathlib.Path(output_dir).parent / 'sonda_quarentena'
@@ -89,7 +89,7 @@ def prequalificarDado(df, tipo_dado, logger, estacao, output_dir):
         estacao = estacao.upper()
         output_dir = output_dir / estacao
         # Cria o nome do arquivo
-        problem_file = output_dir / f"{estacao}_problemas.csv"
+        problem_file = output_dir / f"{estacao}_{tipo_dado}_problemas.csv"
         # Cria o diretório se não existir
         output_dir.mkdir(parents=True, exist_ok=True)
         # Remove o arquivo existente, se houver cria um novo acrescentando _n

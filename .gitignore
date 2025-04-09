@@ -3,6 +3,7 @@
 *.dat
 *.csv
 *.txt
+*.out
 ftp/
 
 # Byte-compiled / optimized / DLL files

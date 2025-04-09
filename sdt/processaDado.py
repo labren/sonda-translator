@@ -142,9 +142,6 @@ def processarArquivo(args):
     # Adiciona colunas extras ao DataFrame
     result['acronym'] = estacao.upper()
     result['timestamp'] = pd.to_datetime(result['timestamp'], errors='coerce')
-    result['year'] = result['timestamp'].dt.year
-    result['day'] = result['timestamp'].dt.dayofyear
-    result['min'] = result['timestamp'].dt.minute
 
     ############################################################################
     ### Parte 3 - Qualificar os dados e salvar o arquivo formatado ###############
