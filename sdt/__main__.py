@@ -8,38 +8,65 @@ from multiprocessing import Pool
 from carregaCabecalhos import carregaCabecalhos
 from logger import setup_logger
 from processaDado import processarArquivo
+from scan_ftp import main as scan_ftp_main
 
+# Copyright (c) Helvecio Neto - 2025 - helvecioblneto@gmail.com
+# Todos os direitos reservados.
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-e', '--estacao', nargs='+', type=lambda s: s.lower(), 
-                        help='Nome da estação ou lista de estações', default=[])
-    parser.add_argument('-hist', '--historico', 
+    # Descrição do que o programa faz
+    
+    parser = argparse.ArgumentParser(
+        description="""
+        SONDA Translator - Ferramenta para processar e formatar arquivos de dados da rede SONDA.
+        
+        Esta ferramenta permite filtrar, qualificar e converter arquivos de dados meteorológicos (.dat) 
+        para formatos padronizados. O processamento pode ser feito de forma sequencial ou paralela, 
+        com suporte a diversos tipos de dados e estações.
+        
+        Exemplos de uso:
+        # Exemplo 1: Processa arquivos das estações 'brb' e 'cai' do tipo SD (Solar Data) do ano de 2020 em modo paralelo
+        python -m sdt -e brb cai -tipo SD -ano 2020 -p
+
+        # Exemplo 2: Exibe (sem processar) os arquivos históricos da estação 'pet'
+        python -m sdt -e pet -hist True -exibir
+
+        # Exemplo 3: Processa o arquivo com ID 42, salva em um diretório específico e sobrescreve se já existir
+        python -m sdt -id 42 -out /caminho/para/saida/ -overwrite
+        
+        """,
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument('-estacao', nargs='+', type=lambda s: s.lower(), 
+                        help='Nome da estação ou lista de estações (ex: brb cai pet)', default=[])
+    parser.add_argument('-historico',
                         type=lambda x: bool(strtobool(x)), 
-                        help='Se True, irá buscar os dados históricos')
-    parser.add_argument('-ano', '--ano', type=str,
-                        help='Ano do dado a ser buscado. Aceita: YYYY, YYYY-MM, YYYY-MM-DD',
+                        help='Se True, irá buscar os dados históricos (ex: True ou False)')
+    parser.add_argument('-ano', type=str,
+                        help='Ano do dado a ser buscado. Aceita: YYYY, YYYY-MM, YYYY-MM-DD (ex: 2020, 2020-06, 2020-06-15)',
                         default='')
     parser.add_argument('-tipo', '--tipo', type=str,
-                help='Tipo de dado a ser buscado. Aceita: SD, MD, WD, INDEFINIDO, TD',
+                help='Tipo de dado a ser buscado: SD (Solar Data), MD (Meteorological Data), WD (Wind Data)',
                 choices=['SD', 'MD', 'WD', 'INDEFINIDO', 'TD'])
-    parser.add_argument('-exibir', '--exibir', action='store_true',
-                        help='Exibe os dados filtrados')
-    parser.add_argument('-p', '--paralelizar', action='store_true',
-                        help='Paraleliza o processamento dos arquivos')
-    parser.add_argument('-id', '--id', type=int,
-                        help='ID do arquivo a ser buscado')
-    parser.add_argument('-out', '--output', type=str, default='/media/helvecioneto/Barracuda/sonda-formatados/',
-                        help='Caminho do arquivo de saída')
-    parser.add_argument('-ovrwrite', '--overwrite', action='store_true',
-                        help='Sobrescreve os arquivos existentes')
-    parser.add_argument('-ftp_dir', '--ftp_dir', type=str, default='/media/helvecioneto/Barracuda/',
-                        help='Diretório de onde estarão os arquivos a serem processados')
+    parser.add_argument('-exibir', action='store_true',
+                        help='Exibe os dados filtrados e não executa o processamento')
+    parser.add_argument('-parallel', action='store_true',
+                        help='Paraleliza o processamento dos arquivos (recomendado para grandes volumes)')
+    parser.add_argument('-id', type=int,
+                        help='ID específico do arquivo a ser processado')
+    parser.add_argument('-output', type=str, default='/media/helvecioneto/Barracuda/sonda-formatados/',
+                        help='Caminho para salvar os arquivos processados')
+    parser.add_argument('-overwrite', action='store_true',
+                        help='Sobrescreve os arquivos de saída caso já existam')
+    parser.add_argument('-ftp_dir', type=str, default='/media/helvecioneto/Barracuda/',
+                        help='Diretório base onde estão localizados os arquivos a serem processados')
+    parser.add_argument('-scan_ftp', action='store_true',
+                        help='Escaneia o diretório FTP para encontrar arquivos .dat')
     args = parser.parse_args()
     
     # Get the directory where the script is located
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    dat_file_path = os.path.join(script_dir, 'json', 'arquivos_dat.json')
+    dat_file_path = os.path.join(script_dir, 'json', 'arquivos_ftp.json')
     
     if os.path.exists(dat_file_path):
         with open(dat_file_path, 'r') as f:
@@ -52,8 +79,6 @@ if __name__ == "__main__":
         print(f"Error: File '{dat_file_path}' not found.")
         exit(1)
 
-    # Remove all TD types from the dataframe
-    dat_files_df = dat_files_df[dat_files_df['tipo'] != 'TD']
     # Apply filters based on parameters
     if args.estacao:
         dat_files_df = dat_files_df[dat_files_df['estacao'].str.lower().isin(args.estacao)]
@@ -76,8 +101,18 @@ if __name__ == "__main__":
 
     # Exibe the filtered data
     if args.exibir:
-        print(dat_files_df.reset_index(drop=True).to_string(index=False))
+        # Limita o número de caracteres da coluna 'caminho' para exibição
+        df_to_show = dat_files_df[['id', 'estacao', 'tipo', 'date', 'caminho']].copy()
+        max_caminho_len = 120
+        df_to_show['caminho'] = df_to_show['caminho'].apply(lambda x: x[:max_caminho_len] + '...' if len(x) > max_caminho_len else x)
+        with pd.option_context('display.max_rows', None, 
+              'display.max_columns', None, 
+              'display.width', 2000):
+            print(df_to_show.to_string(index=False))
         exit()
+    # If scan_ftp is specified, scan the FTP directory for .dat files
+    if args.scan_ftp:
+        scan_ftp_main(args.ftp_dir)
 
     # Pegue os dados que serão processados
     dat_files_to_process = dat_files_df['caminho'].tolist()
@@ -95,7 +130,7 @@ if __name__ == "__main__":
     pbar = tqdm.tqdm(total=len(dat_files_to_process), desc="Processing files", unit="file")
 
     # Process files
-    if args.paralelizar:
+    if args.parallel:
         # Use multiprocessing to process files in parallel
         with Pool(6) as pool:
             results = []

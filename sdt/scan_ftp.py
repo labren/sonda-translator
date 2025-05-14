@@ -175,11 +175,9 @@ def processar_arquivos_estacao(arquivos_estacao, estacao, pbar, resultados_finai
     with lock:
         resultados_finais.extend(resultados_estacao)
 
-def listar_arquivos_dat():
+def listar_arquivos_dat(diretorio_base="../ftp/restricted/coleta/", extensao=".dat"):
     inicio = time.time()
-    diretorio_base = "../ftp/restricted/coleta/"
-    extensao = ".dat"
-    
+    print(f"Buscando arquivos .dat em {diretorio_base}...")
     # Agora a busca já é paralela
     caminhos_arquivos = encontrar_arquivos_dat(diretorio_base, extensao)
     
@@ -254,7 +252,7 @@ def listar_arquivos_dat():
     
     return resultados
 
-def salvar_json(dados, nome_arquivo="json/arquivos_dat.json"):
+def salvar_json(dados, nome_arquivo="json/arquivos_ftp.json"):
     """Salva os dados em um arquivo JSON"""
     print(f"Salvando {len(dados)} registros em {nome_arquivo}...")
     
@@ -298,12 +296,12 @@ def salvar_estatisticas(total_arquivos, estacoes, tipos, datas, historicos, temp
     
     print(f"✓ Estatísticas salvas com sucesso em {nome_arquivo}")
 
-def main():
+def main(diretorio_base="../ftp/restricted/coleta/"):
     try:
         inicio_total = time.time()
         
         # Listar arquivos .dat e categorizar
-        arquivos_dat = listar_arquivos_dat()
+        arquivos_dat = listar_arquivos_dat(diretorio_base)
         
         # Verificar se encontrou arquivos
         if not arquivos_dat:
@@ -377,4 +375,4 @@ def main():
         print(traceback.format_exc())
 
 if __name__ == "__main__":
-    main()
+    main(diretorio_base="../ftp/restricted/coleta/")
