@@ -43,7 +43,7 @@
         "acronym": [],
         "timestamp": ["TIMESTAMP", "timestamp"],
         "year": ["YEAR", "year"],
-        "day": ["DAY", "day"],
+        "day": ["DAY", "day", "jday", "JDAY"],
         "min": ["MIN", "min"],
         "tp_sfc": ["TP_SFC", "tp_sfc"],
         "humid_sfc": ["HUMID_SFC", "humid_sfc"],

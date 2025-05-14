@@ -25,20 +25,23 @@ def tratar_quarentena(estacao, tipo, quarentena_id, output, overwrite=False, exi
     # Lê o arquivo de quarentena
     quarentena_df = pd.read_csv(quarentena_file)
 
-    # Filtra pelo ID de quarentena
-    if quarentena_id:
+    try:
         quarentena_id = [int(i) for i in quarentena_id]
+    except Exception:
+        quarentena_id = None
+
+    # Filtra pelo ID de quarentena
+    if quarentena_id is not None:
         quarentena_df = quarentena_df[quarentena_df['qid'].isin(quarentena_id)]
 
     # Verificar se exibir é True
     if exibir:
-        # Limita o número de caracteres da coluna 'path' para exibição
-        max_path_len = 150
-        quarentena_df['path'] = quarentena_df['path'].apply(lambda x: x[:max_path_len] + '...' if len(x) > max_path_len else x)
+        max_caminho_len = 80
+        quarentena_df['path'] = quarentena_df['path'].apply(lambda x: x[:max_caminho_len] + '...' if len(x) > max_caminho_len else x)
         with pd.option_context('display.max_rows', None, 
-                               'display.max_columns', None, 
-                               'display.width', 2000):
+              'display.max_columns', None, 
+              'display.width', 2000):
             print(quarentena_df.to_string(index=False))
         return
 
-    print(quarentena_df)
+    # print(quarentena_df)

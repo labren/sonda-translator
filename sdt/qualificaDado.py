@@ -87,7 +87,7 @@ def prequalificarDado(df, tipo_dado, logger, estacao, output_dir):
     # Separa os dados bons e os problemáticos
     good_data = df[df['data'].isin(good_dates)].copy()
     problem_data = df[df['data'].isin(problematic_dates)].copy()
-    
+
     # Adiciona a coluna 'problem_type' nos dados com problemas
     problem_data['problem_type'] = problem_data['data'].apply(lambda d: problems_by_date.get(d))
     
@@ -130,15 +130,45 @@ def prequalificarDado(df, tipo_dado, logger, estacao, output_dir):
 
         # Opcional: salvar também um sumário com todos os dias problemáticos
         summary_file = estacao_dir / f"{estacao}_{tipo_dado}_sumario_problemas.csv"
+        # Abre o arquivo de sumário, se já existir, para adicionar os novos dados
+        if summary_file.exists():
+            summary_df = pd.read_csv(summary_file)
+        else:
+            summary_df = pd.DataFrame()
+        # Pega o maior qid do sumário
+        if not summary_df.empty:
+            max_qid = summary_df['qid'].max()
+        else:
+            max_qid = 0
+        # Adiciona os dados problemáticos ao sumário
         problem_summary = pd.DataFrame({
-            'qid': range(1, len(problematic_dates) + 1),
+            'qid': range(max_qid + 1, max_qid + len(problematic_dates) + 1),
             'estacao': estacao,
             'tipo_dado': tipo_dado,
             'data': problematic_dates,
             'problema': [problems_by_date.get(d) for d in problematic_dates],
-            'path': [estacao_dir / f"{estacao}_{tipo_dado}_{d.strftime('%Y-%m-%d')}_problemas.csv" for d in problematic_dates]
+            'path': [estacao_dir / f"{estacao}_{tipo_dado}_{d.strftime('%Y-%m-%d')}_problemas.csv" for d in 
+            problematic_dates],
+            'status': 'quarentena'
         })
-        problem_summary.to_csv(summary_file, index=False)
+        # Trata espaços em branco de problemas, substitui por um unico espaço
+        problem_summary['problema'] = problem_summary['problema'].str.replace(r'\s+', ' ', regex=True)
+
+        # Antes de concatenar, verifica se o DataFrame o dado já foi tratado, ou seja, se o status é diferente de 'quarentena', isso deve ser feito com uma comparação entre summary_df e problem_summary
+        if not summary_df.empty:
+            # Verifica se o dado já foi tratado
+            treated_data = summary_df[summary_df['status'] != 'quarentena']
+            # Adiciona os dados tratados ao sumário
+            summary_df = pd.concat([summary_df, treated_data], ignore_index=True)
+        # Concatena os dados problemáticos com o sumário
+        summary_df = pd.concat([summary_df, problem_summary], ignore_index=True)
+        # Remove duplicatas, mantendo o último para todas as colunas
+        summary_df.drop_duplicates(subset=['path'], keep='last', inplace=True)        
+        # Ordena pelo qid
+        summary_df.sort_values(by='qid', ascending=True, inplace=True)
+        # Salva o sumário atualizado
+        summary_file = estacao_dir / f"{estacao}_{tipo_dado}_sumario_problemas.csv"
+        summary_df.to_csv(summary_file, index=False)
 
     return good_data
 
