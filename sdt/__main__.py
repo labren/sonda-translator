@@ -55,7 +55,7 @@ if __name__ == "__main__":
                         help='Paraleliza o processamento dos arquivos (recomendado para grandes volumes)')
     parser.add_argument('-id', type=int,
                         help='ID específico do arquivo a ser processado')
-    parser.add_argument('-output', type=str, default='/media/helvecioneto/Barracuda/sonda-formatados/',
+    parser.add_argument('-output', type=str, default='output/sonda-formatados/',
                         help='Caminho para salvar os arquivos processados')
     parser.add_argument('-overwrite', action='store_true',
                         help='Sobrescreve os arquivos de saída caso já existam')

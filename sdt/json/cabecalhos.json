@@ -3,7 +3,7 @@
         "acronym": [],
         "timestamp": ["TIMESTAMP", "timestamp"],
         "year": ["YEAR", "year"],
-        "day": ["DAY", "day"],
+        "day": ["DAY", "day", "jday", "JDAY"],
         "min": ["MIN", "min"],
         "glo_avg": ["GLO_AVG", "glo_avg"],
         "glo_std": ["GLO_STD", "glo_std"],

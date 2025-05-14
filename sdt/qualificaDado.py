@@ -2,6 +2,7 @@ import pandas as pd
 import pathlib
 
 def prequalificarDado(df, tipo_dado, logger, estacao, output_dir):
+
     """
     Função para qualificar os dados de um DataFrame.
 
