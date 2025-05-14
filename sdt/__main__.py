@@ -9,6 +9,7 @@ from carregaCabecalhos import carregaCabecalhos
 from logger import setup_logger
 from processaDado import processarArquivo
 from scan_ftp import main as scan_ftp_main
+from tratar_quarentena import tratar_quarentena
 
 # Copyright (c) Helvecio Neto - 2025 - helvecioblneto@gmail.com
 # Todos os direitos reservados.
@@ -62,6 +63,9 @@ if __name__ == "__main__":
                         help='Diretório base onde estão localizados os arquivos a serem processados')
     parser.add_argument('-scan_ftp', action='store_true',
                         help='Escaneia o diretório FTP para encontrar arquivos .dat')
+    parser.add_argument('-quarentena', type=str,
+                        help='Caminho para um diretório de quarentena ou arquivo específico em quarentena')
+    
     args = parser.parse_args()
     
     # Get the directory where the script is located
@@ -110,9 +114,15 @@ if __name__ == "__main__":
               'display.width', 2000):
             print(df_to_show.to_string(index=False))
         exit()
+    
     # If scan_ftp is specified, scan the FTP directory for .dat files
     if args.scan_ftp:
         scan_ftp_main(args.ftp_dir)
+
+    # If quarentena is specified, process the files in quarantine
+    if args.quarentena:
+        arquivos_quarentena = tratar_quarentena(args.quarentena)
+        exit()
 
     # Pegue os dados que serão processados
     dat_files_to_process = dat_files_df['caminho'].tolist()
