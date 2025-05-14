@@ -44,7 +44,10 @@ def prequalificarDado(df, tipo_dado, logger, estacao, output_dir):
     
     # Itera sobre cada dia
     for date, group in df.groupby('data'):
-        group = group.sort_values('timestamp').reset_index(drop=True)
+
+        # Agrupa os dados por data e ordena por timestamp
+        group = group.reset_index(drop=True)
+
         problemas = []
         
         # Teste 1: Verifica se o primeiro registro é exatamente 00:00:00
@@ -53,13 +56,6 @@ def prequalificarDado(df, tipo_dado, logger, estacao, output_dir):
         
         # Teste 2: Verifica se a quantidade de registros é a esperada
         elif len(group) != expected_rows:
-            # Procure por registros com timestamp fora do intervalo esperado
-            # e adicione os índices problemáticos
-            problematic_indices = group[(group['timestamp'] < group.iloc[0]['timestamp']) | 
-                                        (group['timestamp'] > group.iloc[-1]['timestamp'])].index
-            if not problematic_indices.empty:
-                problemas.append(f"registros fora do intervalo esperado, \
-                    índices: {problematic_indices.tolist()}")
             # Adicione o problema de número de linhas
             if len(group) < expected_rows:
                 problemas.append(f"número de linhas menor que o esperado, \
@@ -75,7 +71,13 @@ def prequalificarDado(df, tipo_dado, logger, estacao, output_dir):
             inconsistent_intervals = deltas[deltas != expected_interval].index
             problemas.append(f"intervalos inconsistentes entre os registros, \
                 índices: {inconsistent_intervals.tolist()}")
-        
+            
+        # Teste 4: Verifica se não existem registros duplicados
+        elif group['timestamp'].duplicated().any():
+            # Encontre os índices dos registros duplicados
+            duplicated_indices = group[group['timestamp'].duplicated()].index
+            problemas.append(f"timestamp com registros duplicados, índices: {duplicated_indices.tolist()}")
+
         # Se não houver problemas, adiciona a data na lista de dados bons
         if not problemas:
             good_dates.append(date)

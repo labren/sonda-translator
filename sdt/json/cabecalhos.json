@@ -46,7 +46,7 @@
         "day": ["DAY", "day", "jday", "JDAY"],
         "min": ["MIN", "min"],
         "tp_sfc": ["TP_SFC", "tp_sfc"],
-        "humid_sfc": ["HUMID_SFC", "humid_sfc"],
+        "humid_sfc": ["humid","HUMID_SFC", "humid_sfc"],
         "press": ["PRESS", "press"],
         "rain": ["RAIN", "rain"],
         "ws10_avg": ["WS10_AVG", "ws10_avg"],
