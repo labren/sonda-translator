@@ -52,13 +52,29 @@ def prequalificarDado(df, tipo_dado, logger, estacao, output_dir):
             problemas.append("início não é 00:00:00")
         
         # Teste 2: Verifica se a quantidade de registros é a esperada
-        if len(group) != expected_rows:
-            problemas.append("número de linhas incorreto")
+        elif len(group) != expected_rows:
+            # Procure por registros com timestamp fora do intervalo esperado
+            # e adicione os índices problemáticos
+            problematic_indices = group[(group['timestamp'] < group.iloc[0]['timestamp']) | 
+                                        (group['timestamp'] > group.iloc[-1]['timestamp'])].index
+            if not problematic_indices.empty:
+                problemas.append(f"registros fora do intervalo esperado, \
+                    índices: {problematic_indices.tolist()}")
+            # Adicione o problema de número de linhas
+            if len(group) < expected_rows:
+                problemas.append(f"número de linhas menor que o esperado, \
+                    esperado: {expected_rows}, encontrado: {len(group)}")
+            else:
+                problemas.append(f"número de linhas maior que o esperado, \
+                    esperado: {expected_rows}, encontrado: {len(group)}")
         
         # Teste 3: Verifica se os intervalos entre os registros são consistentes
-        deltas = group['timestamp'].diff().dropna()
-        if not (deltas == expected_interval).all():
-            problemas.append("intervalos inconsistentes")
+        elif not (group['timestamp'].diff().dropna() == expected_interval).all():
+            deltas = group['timestamp'].diff().dropna()
+            # Encontre os índices onde o intervalo não é o esperado
+            inconsistent_intervals = deltas[deltas != expected_interval].index
+            problemas.append(f"intervalos inconsistentes entre os registros, \
+                índices: {inconsistent_intervals.tolist()}")
         
         # Se não houver problemas, adiciona a data na lista de dados bons
         if not problemas:
@@ -79,31 +95,52 @@ def prequalificarDado(df, tipo_dado, logger, estacao, output_dir):
     good_data.drop(columns=['data'], inplace=True)
     problem_data.drop(columns=['data'], inplace=True)
 
-    # move a coluna 'problem_type' para o inicio do DataFrame
-    # cols = problem_data.columns.tolist()
-    # cols.insert(0, cols.pop(cols.index('problem_type')))
-    # problem_data = problem_data[cols]
     if not problem_data.empty:
         # Volta um diretorio do output_dir e cria o diretorio sonda_quarentena
-        output_dir = pathlib.Path(output_dir).parent / 'sonda_quarentena'
-        # Cria o nome do arquivo output_dir/estacao/ano/mes/dia/estacao_ano_mes_dia_problemas.csv
+        quarentena_dir = pathlib.Path(output_dir).parent / 'sonda_quarentena'
+        # Converte estação para maiúsculo
         estacao = estacao.upper()
-        output_dir = output_dir / estacao
-        # Cria o nome do arquivo
-        problem_file = output_dir / f"{estacao}_{tipo_dado}_problemas.csv"
-        # Cria o diretório se não existir
-        output_dir.mkdir(parents=True, exist_ok=True)
-        # Remove o arquivo existente, se houver cria um novo acrescentando _n
-        if problem_file.exists():
-            i = 1
-            while problem_file.exists():
-                problem_file = output_dir / f"{estacao}_problemas_{i}.csv"
-                i += 1        
-        # Salva os dados problemáticos em um arquivo CSV
-        problem_data.to_csv(problem_file, index=False)
+        # Cria o diretório base da estação
+        estacao_dir = quarentena_dir / estacao
+        estacao_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Agrupa os dados problemáticos por dia e salva cada dia em um arquivo separado
+        for date in problematic_dates:
+            # Filtra dados apenas deste dia
+            day_data = df[df['data'] == date].copy()
+            # Remove a coluna auxiliar 'data'
+            day_data.drop(columns=['data'], inplace=True)
+            # Adiciona a coluna de tipo de problema
+            # day_data['problem_type'] = problems_by_date.get(date)
+            
+            # Cria nome do arquivo com data (YYYY-MM-DD)
+            date_str = date.strftime('%Y-%m-%d')
+            problem_file = estacao_dir / f"{estacao}_{tipo_dado}_{date_str}_problemas.csv"
+            
+            # Cria diretório por ano/mês (opcional)
+            year_month_dir = estacao_dir / f"{date.year}/{date.month:02d}"
+            year_month_dir.mkdir(parents=True, exist_ok=True)
+            problem_file = year_month_dir / f"{estacao}_{tipo_dado}_{date_str}_problemas.csv"
+            
+            # Salva os dados problemáticos deste dia no arquivo CSV
+            day_data.to_csv(problem_file, index=False)
+            
+            # Log para acompanhamento
+            logger.info(f"Dados problemáticos do dia {date_str} salvos em: {problem_file}")
+
+        # Opcional: salvar também um sumário com todos os dias problemáticos
+        summary_file = estacao_dir / f"{estacao}_{tipo_dado}_sumario_problemas.csv"
+        problem_summary = pd.DataFrame({
+            'qid': range(1, len(problematic_dates) + 1),
+            'estacao': estacao,
+            'tipo_dado': tipo_dado,
+            'data': problematic_dates,
+            'problema': [problems_by_date.get(d) for d in problematic_dates],
+            'path': [estacao_dir / f"{estacao}_{tipo_dado}_{d.strftime('%Y-%m-%d')}_problemas.csv" for d in problematic_dates]
+        })
+        problem_summary.to_csv(summary_file, index=False)
 
     return good_data
 
-    
 
-    
+

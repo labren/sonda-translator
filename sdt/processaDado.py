@@ -137,7 +137,7 @@ def processarArquivo(args):
     # Verifica se tem outros dados e cria um log
     if not outros_dados.empty:
         # Registra o erro usando o logger
-        logger.error(f"Error 5 - O arquivo {file_path} contém colunas que não foram processadas: {outros_dados.columns.tolist()}")
+        logger.error(f"WARNING - O arquivo {file_path} contém colunas que não foram processadas: {outros_dados.columns.tolist()}")
 
     # Adiciona colunas extras ao DataFrame
     result['acronym'] = estacao.upper()
