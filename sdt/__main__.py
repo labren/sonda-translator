@@ -46,7 +46,7 @@ if __name__ == "__main__":
     parser.add_argument('-ano', type=str,
                         help='Ano do dado a ser buscado. Aceita: YYYY, YYYY-MM, YYYY-MM-DD (ex: 2020, 2020-06, 2020-06-15)',
                         default='')
-    parser.add_argument('-tipo', '--tipo', type=str,
+    parser.add_argument('-tipo', type=str,
                 help='Tipo de dado a ser buscado: SD (Solar Data), MD (Meteorological Data), WD (Wind Data)',
                 choices=['SD', 'MD', 'WD', 'INDEFINIDO', 'TD'])
     parser.add_argument('-exibir', action='store_true',
@@ -63,8 +63,8 @@ if __name__ == "__main__":
                         help='Diretório base onde estão localizados os arquivos a serem processados')
     parser.add_argument('-scan_ftp', action='store_true',
                         help='Escaneia o diretório FTP para encontrar arquivos .dat')
-    parser.add_argument('-quarentena', type=str,
-                        help='Caminho para um diretório de quarentena ou arquivo específico em quarentena')
+    parser.add_argument('-quarentena_id', nargs='+', type=str,
+                        help='Um ou mais IDs de arquivos em quarentena para serem tratados')
     
     args = parser.parse_args()
     
@@ -103,6 +103,16 @@ if __name__ == "__main__":
     if args.id:
         dat_files_df = dat_files_df[dat_files_df['id'] == args.id]
 
+    # If scan_ftp is specified, scan the FTP directory for .dat files
+    if args.scan_ftp:
+        scan_ftp_main(args.ftp_dir)
+
+    # If quarentena is specified, process the files in quarantine
+    if args.quarentena_id:
+        arquivos_quarentena = tratar_quarentena(args.estacao, args.tipo, args.quarentena_id, 
+                                                args.output, args.overwrite, args.exibir)
+        exit()
+
     # Exibe the filtered data
     if args.exibir:
         # Limita o número de caracteres da coluna 'caminho' para exibição
@@ -115,15 +125,6 @@ if __name__ == "__main__":
             print(df_to_show.to_string(index=False))
         exit()
     
-    # If scan_ftp is specified, scan the FTP directory for .dat files
-    if args.scan_ftp:
-        scan_ftp_main(args.ftp_dir)
-
-    # If quarentena is specified, process the files in quarantine
-    if args.quarentena:
-        arquivos_quarentena = tratar_quarentena(args.quarentena, args.output)
-        exit()
-
     # Pegue os dados que serão processados
     dat_files_to_process = dat_files_df['caminho'].tolist()
     # Pegue os tipos de dados que serão processados

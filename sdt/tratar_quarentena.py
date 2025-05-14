@@ -1,73 +1,44 @@
-import os
-import glob
-import duckdb
 import pandas as pd
-import pathlib
-import warnings
-warnings.filterwarnings("ignore")
+from pathlib import Path
+import os
 
+def tratar_quarentena(estacao, tipo, quarentena_id, output, overwrite=False, exibir=False):
 
-def tratar_quarentena(quarentena_path, output_dir):
-    """
-    Unifica arquivos em quarentena a partir de um caminho que pode ser um diretório ou arquivo específico.
+    # Pega primeiro elemento da estacao
+    estacao = estacao[0]
+    # Verifica se estacao é uma string
+    if not isinstance(estacao, str):
+        raise ValueError("A estação deve ser uma string, voce passou: {}".format(type(estacao)))
+    # Verifica se tipo é uma string
+    if not isinstance(tipo, str):
+        raise ValueError("O tipo deve ser uma string, voce passou: {}".format(type(tipo)))
     
-    Args:
-        quarentena_path: Caminho para um diretório contendo arquivos em quarentena ou para um arquivo específico
-        
-    Returns:
-        list: Lista com todos os arquivos em quarentena
-    """
-    arquivos_quarentena = []
+    # Remove 'sonda-formatados/' que existe no output
+    output = output.replace('sonda-formatados/', '')
     
-    # Verifica se o caminho existe
-    if not quarentena_path:
-        print("Nenhum caminho de quarentena fornecido.")
-        return []
+    # Verifica se arquivo de quarentena existe com base no output/sonda_quarentena/estacao/{estacao}_{tipo}_sumario_problemas.csv
+    quarentena_file = Path(output) / 'sonda_quarentena' / estacao.upper() / f"{estacao.upper()}_{tipo}_sumario_problemas.csv"
+    if not quarentena_file.exists():
+        print(f"Arquivo de quarentena não encontrado: {quarentena_file}")
+        return
     
-    # Caso seja um diretório, busca todos os arquivos .csv recursivamente
-    if os.path.isdir(quarentena_path):
-        padrao_busca = os.path.join(quarentena_path, '**', '*.csv')
-        arquivos_quarentena = [f for f in glob.glob(padrao_busca, recursive=True) if os.path.isfile(f)]
-    # Caso seja um arquivo, adiciona diretamente à lista
-    elif os.path.isfile(quarentena_path):
-        arquivos_quarentena = [quarentena_path]
-    else:
-        print(f"Caminho de quarentena inválido: {quarentena_path}")
+    # Lê o arquivo de quarentena
+    quarentena_df = pd.read_csv(quarentena_file)
 
-    # Remove arquivos duplicados
-    arquivos_quarentena = list(set(arquivos_quarentena))
+    # Filtra pelo ID de quarentena
+    if quarentena_id:
+        quarentena_id = [int(i) for i in quarentena_id]
+        quarentena_df = quarentena_df[quarentena_df['qid'].isin(quarentena_id)]
 
-    # Verifica se a lista de arquivos em quarentena está vazia
-    if not arquivos_quarentena:
-        print("Nenhum arquivo em quarentena encontrado.")
-        return []
-    
-    # Cria conexão com o banco de dados DuckDB
-    con = duckdb.connect(database=':memory:')
-        
-    # Processa os arquivos em quarentena
-    processar_arquivos_quarentena(con, arquivos_quarentena, output_dir)
+    # Verificar se exibir é True
+    if exibir:
+        # Limita o número de caracteres da coluna 'path' para exibição
+        max_path_len = 150
+        quarentena_df['path'] = quarentena_df['path'].apply(lambda x: x[:max_path_len] + '...' if len(x) > max_path_len else x)
+        with pd.option_context('display.max_rows', None, 
+                               'display.max_columns', None, 
+                               'display.width', 2000):
+            print(quarentena_df.to_string(index=False))
+        return
 
-    return []
-
-def processar_arquivos_quarentena(con, arquivos_quarentena, output_dir):
-    """
-    Processa arquivos em quarentena e salva os resultados em um diretório de saída.
-    
-    Args:
-        arquivos_quarentena: Lista de arquivos em quarentena
-        output_dir: Diretório onde os arquivos processados serão salvos
-    """
-    for arquivo in arquivos_quarentena:
-        # Lógica para processar cada arquivo
-        # Exemplo: ler o arquivo, aplicar transformações, salvar no output_dir
-        print(f"Processando arquivo: {arquivo}")
-        # Lê arquivo CSV
-        try:
-            df = con.query(f"SELECT * FROM read_csv_auto('{arquivo}', ignore_errors=true)").df()
-        except Exception as e:
-            print(f"Erro ao ler o arquivo {arquivo}: {e}")
-            continue
-
-        print(df)
-        break
+    print(quarentena_df)
