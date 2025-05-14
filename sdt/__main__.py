@@ -121,7 +121,7 @@ if __name__ == "__main__":
 
     # If quarentena is specified, process the files in quarantine
     if args.quarentena:
-        arquivos_quarentena = tratar_quarentena(args.quarentena)
+        arquivos_quarentena = tratar_quarentena(args.quarentena, args.output)
         exit()
 
     # Pegue os dados que serão processados
