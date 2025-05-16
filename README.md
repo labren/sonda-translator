@@ -43,6 +43,11 @@ Desenvolvida para atender às necessidades do Laboratório de Modelagem e Estudo
   - Visualização prévia dos dados selecionados antes do processamento
   - Geração de logs e estatísticas detalhadas
 
+- **Geração de Base de Dados**
+  - Consolidação de dados formatados em arquivos Parquet
+  - Otimização para análises e consultas de grandes volumes de dados
+  - Suporte à compressão e esquemas estruturados para melhor desempenho
+
 ## Estrutura do Projeto
 
 ```
@@ -66,7 +71,7 @@ output/
 ## Requisitos
 
 - Python 3.8 ou superior
-- Bibliotecas: pandas, tqdm, numpy
+- Bibliotecas: pandas, tqdm, numpy, pyarrow, duckdb, sshfs
 - Acesso aos arquivos de dados (local ou via FTP)
 
 ## Instalação
@@ -153,6 +158,7 @@ python sdt [opções]
 | `-ftp_dir` | caminho | Diretório base dos arquivos a serem processados |
 | `-scan_ftp` | - | Escaneia o diretório FTP para encontrar arquivos .dat |
 | `-quarentena` | [ids] | Trata arquivos em quarentena pelos seus IDs |
+| `-gerar_base` | - | Gera base de dados consolidada em formato Parquet a partir dos arquivos formatados |
 
 ## Casos de Uso
 
@@ -219,6 +225,19 @@ python sdt -estacao brb -tipo SD -output /caminho/personalizado/ -formatar
 
 # Sobrescrever arquivos existentes
 python sdt -estacao brb -tipo SD -overwrite -formatar
+```
+
+### 7. Geração de Base de Dados Consolidada
+
+```bash
+# Gerar base de dados para todos os arquivos formatados
+python sdt -gerar_base
+
+# Gerar base de dados para um tipo específico de dados
+python sdt -tipo SD -gerar_base
+
+# Gerar base de dados sobrescrevendo arquivo existente
+python sdt -gerar_base -overwrite
 ```
 
 ## Saída e Resultados

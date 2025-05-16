@@ -3,6 +3,8 @@
 *.dat
 *.csv
 *.out
+*.db
+*.parquet
 ftp/
 error_log.txt
 

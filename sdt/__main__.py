@@ -11,6 +11,7 @@ from logger import setup_logger
 from processaDado import processarArquivo
 from scan_ftp import main as scan_ftp_main
 from tratar_quarentena import tratar_quarentena
+from gerar_base import gerarBase
 
 # Copyright (c) Helvecio Neto - 2025 - helvecioblneto@gmail.com
 # Todos os direitos reservados.
@@ -66,7 +67,8 @@ if __name__ == "__main__":
                         help='Escaneia o diretório FTP para encontrar arquivos .dat')
     parser.add_argument('-quarentena', nargs='*', type=str, default=None,
                         help='Trata arquivos em quarentena através de seus IDs (pode ser fornecido sem IDs ou com um ou mais IDs)')
-    
+    parser.add_argument('-gerar_base', action='store_true',
+                        help='Gera base de dados dos arquivos formatados')
     args = parser.parse_args()
     
     # Get the directory where the script is located
@@ -119,7 +121,7 @@ if __name__ == "__main__":
         exit()
 
     # Exibe os dados filtrados se não for solicitado formatação
-    if not args.formatar:
+    if not args.formatar and not args.gerar_base:
         # Limita o número de caracteres da coluna 'caminho' para exibição
         df_to_show = dat_files_df[['id', 'estacao', 'tipo',  'ano', 'is_historico', 'caminho']].copy()
         max_caminho_len = 120
@@ -129,6 +131,17 @@ if __name__ == "__main__":
               'display.width', 2000):
             print(df_to_show.to_string(index=False))
         exit()
+
+    # Configura o logger
+    logger = setup_logger()
+    # Carrega os cabeçalhos e os sensores a partir de arquivos JSON.
+    headers, header_sensor = carregaCabecalhos()
+
+    # Chama funcao gerar base
+    if args.gerar_base:
+        # Chama funcao gerar base
+        gerarBase(args.output, args.tipo, headers, args.overwrite)
+        exit()
     
     # Pegue os dados que serão processados
     dat_files_to_process = dat_files_df['caminho'].tolist()
@@ -136,11 +149,6 @@ if __name__ == "__main__":
     dat_files_types = dat_files_df['tipo'].tolist()
     # Pega todas as estações que serão processadas
     dat_files_stations = dat_files_df['estacao'].tolist()
-
-    # Configura o logger
-    logger = setup_logger()
-    # Carrega os cabeçalhos e os sensores a partir de arquivos JSON.
-    headers, header_sensor = carregaCabecalhos()
 
     # Monta barra de progresso
     pbar = tqdm.tqdm(total=len(dat_files_to_process), desc="Processing files", unit="file")
