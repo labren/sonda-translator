@@ -50,18 +50,21 @@ def gerarBase(output_dir, tipo, cabecalhos, overwrite=False):
 
     # Salvar a base de dados meteorológicos em um arquivo parquet
     if counter > 0:
-        con.execute(f"COPY {nome_base} TO '{output_base + tipo_completo}' (FORMAT 'parquet')")
-        print(f"Base de dados meteorológicos salva em {output_base + tipo_completo}")
+        # Salvar a tabela em um arquivo parquet sem duplicatas
+        con.execute(f"""
+            COPY (
+                SELECT DISTINCT *
+                FROM {nome_base}
+            )
+            TO '{output_base + tipo_completo}' (FORMAT 'parquet');
+        """)
     else:
         print(f"A tabela {nome_base} está vazia. Nenhum arquivo parquet foi criado.")
     
     con.close()
     print(f"Base de dados criada e salva em {output_base}")
-
     # Remover arquivos temporários
     os.system('rm -rf .tmp')
-
-
 
 
 # Função para criar a tabela no banco de dados e inicializa todas as variáveis vazias
