@@ -16,8 +16,8 @@ def tratar_quarentena(estacao, tipo, quarentena_id, output, overwrite=False, exi
         raise ValueError("O tipo deve ser uma string, voce passou: {}".format(type(tipo)))
     # Remove 'sonda-formatados/' que existe no output
     output = output.replace('sonda-formatados/', '')
-    # Verifica se arquivo de quarentena existe com base no output/sonda-quarentena/estacao/{estacao}_{tipo}_sumario_problemas.csv
-    quarentena_file = Path(output) / 'sonda-quarentena' / estacao.upper() / f"{estacao.upper()}_{tipo}_sumario_problemas.csv"
+    # Verifica se arquivo de quarentena existe
+    quarentena_file = Path(output) / 'sonda-quarentena' / 'quarentena.csv'
     if not quarentena_file.exists():
         print(f"Arquivo de quarentena não encontrado: {quarentena_file}")
         return
@@ -36,47 +36,20 @@ def tratar_quarentena(estacao, tipo, quarentena_id, output, overwrite=False, exi
     else:
         quarentena_df = quarentena_df_main.copy()
 
-    max_caminho_len = 20
+    max_len = 45
     quarentena_display = quarentena_df.copy()
-    quarentena_display['path'] = quarentena_display['path'].apply(lambda x: '...'+ x[max_caminho_len:] if len(x) > max_caminho_len else x)
-    with pd.option_context('display.max_rows', None, 
-            'display.max_columns', None, 
-            'display.width', 2000):
-        print(f"Lista de arquivos de quarentena para a estação {estacao.upper()} e tipo {tipo}:")
-        print(quarentena_display.to_string(index=False))
-        print('-'*50)
-        input("Pressione Enter para continuar ou Ctrl+C para cancelar...")
+    quarentena_display['path'] = quarentena_display['path'].apply(lambda x: '...'+ x[-max_len:] if len(x) > max_len else x)
+    print(f"Lista de arquivos de quarentena para a estação {estacao.upper()} e tipo {tipo}:")
+    print(quarentena_display[['qid', 'estacao', 'tipo', 'status','data_tratamento','problema','path']].to_string(index=False))
+    print('-'*50)
+    print('')
+    # input("Pressione Enter para continuar ou Ctrl+C para cancelar...")
     
-    # Cast para datetime
-    quarentena_df['data'] = pd.to_datetime(quarentena_df['data'], errors='coerce')
-
     # Carrega os cabeçalhos e os sensores a partir de arquivos JSON.
     _, header_sensor = carregaCabecalhos()
 
     # Loop por arquivos de quarentena
     for index, row in quarentena_df.iterrows():
-        # monta arquivo de referencia
-        # Montar nome do arquivo de referencia
-        arqv_ref = output + 'sonda-formatados/' + estacao.upper() + '/'
-        # Se o tipo for 'MD' ou 'SD' ou 'WD'
-        tipo_completo = {'MD': 'Meteorologicos', 'SD': 'Solarimetricos', 'WD': 'Anemometricos'}.get(tipo)
-        if tipo_completo:
-            arqv_ref += tipo_completo + '/'
-        else:
-            print(f"Tipo de dado inválido: {tipo}")
-            continue
-        arqv_ref += str(row['data'].year) + '/' + estacao.upper() + '_' + str(row['data'].year) + '_' + str(row['data'].month).zfill(2) + '_' + tipo + '_formatado.csv'
-
-        print('-'*50)
-        print(f"Tratando arquivo de quarentena: {row['path']}...")
-        # Pega o problema e printa
-        print(f"O tipo de problema do arquivo é: \t{row['problema']}")
-
-        # Pergunta se deseja tratar o arquivo
-        resposta = input(f"Deseja tratar o arquivo {arqv_ref} ? (s/n): ")
-        if resposta.lower() != 's':
-            print("Arquivo não tratado.")
-            continue
         # Pega o caminho do arquivo
         caminho = row['path']
         # Verifica se o arquivo existe
@@ -84,7 +57,31 @@ def tratar_quarentena(estacao, tipo, quarentena_id, output, overwrite=False, exi
             print(f"Arquivo não encontrado: {caminho}")
             continue
         # Abrindo o arquivo
-        df_q = pd.read_csv(caminho)
+        df_q_orig = pd.read_csv(caminho)
+        # Seta colunas de timestamp
+        df_q_orig['timestamp'] = pd.to_datetime(df_q_orig['timestamp'], errors='coerce')
+        df_q = df_q_orig.copy() # Cria uma copia do arquivo de quarentena
+        # Encontra o ano mais comum no arquivo de quarentena baseado no timestamp
+        common_year = str(df_q['timestamp'].dt.year.mode()[0])
+        # Encontra o mes mais comum no arquivo de quarentena baseado no timestamp com zfill
+        common_month = str(df_q['timestamp'].dt.month.mode()[0]).zfill(2)
+        # Seta arquivo de quarentena apenas para o ano mais comum e mes mais comum
+        df_q = df_q[(df_q['timestamp'].dt.year == int(common_year)) & (df_q['timestamp'].dt.month == int(common_month))]
+        # Montar nome do arquivo de referencia
+        arqv_ref = output + 'sonda-formatados/' + estacao.upper() + '/' + row['tipo_completo'] + '/'
+        arqv_ref += common_year + '/' + estacao.upper() + '_' + common_year + '_' + common_month + '_' + row['tipo'] + '_formatado.csv'
+
+        print('-'*50)
+        print(f"Tratando arquivo com qid: \t{row['qid']} \tda estacao {estacao.upper()} e tipo {tipo}")
+        print(f"O status atual do arquivo é: \t{row['status']}")
+        print(f"O tipo de problema do arquivo é: \t{row['problema']}")
+        print(f"Tratando arquivo de quarentena: \t{row['path']}...")
+        resposta = input(f"O arquivo a ser alterado é: \t\t{arqv_ref} ? \n(s/n): ")
+        if resposta.lower() != 's':
+            print("Arquivo ignorado.")
+            print('-'*50)
+            continue
+        
         # Verifica se o arquivo de referencia existe
         if not os.path.exists(arqv_ref):
             print(f"Arquivo de referencia não encontrado: {arqv_ref}")
@@ -122,7 +119,6 @@ def tratar_quarentena(estacao, tipo, quarentena_id, output, overwrite=False, exi
         pos_col = df_ref.columns.tolist()
 
         # Seta colunas de timestamp
-        df_q['timestamp'] = pd.to_datetime(df_q['timestamp'], errors='coerce')
         df_ref['timestamp'] = pd.to_datetime(df_ref['timestamp'], errors='coerce')
 
         # Verifica se o cabeçalho do arquivo de quarentena é igual ao do arquivo de referencia
