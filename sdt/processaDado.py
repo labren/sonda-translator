@@ -185,6 +185,13 @@ def processarArquivo(args):
             file_path = os.path.join(output_path, file_name)
             # Cria diretorio caso não exista
             pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
+            # Verifica se existem linhas duplicadas
+            if group.duplicated().any():
+                # Registra o erro usando o logger
+                logger.error(f"WARNING - O arquivo {file_path} contém linhas duplicadas.")
+                # Remove as linhas duplicadas
+                group = group.drop_duplicates()
+            # Verifica se o arquivo já existe
             if os.path.exists(file_path):
                 if not overwrite:
                     continue
