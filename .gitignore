@@ -2,7 +2,6 @@
 *.DAT
 *.dat
 *.csv
-*.txt
 *.out
 ftp/
 
