@@ -42,7 +42,7 @@ def prequalificarDado(df, tipo_dado, logger, estacao, output_dir, tipo_completo)
 
     # Cria um DataFrame vazio para o sumário com as colunas necessárias
     summary_df = pd.DataFrame(columns=['qid', 'estacao', 'tipo', 'tipo_completo' ,
-                                        'problema', 'data_detecao' , 'path', 'data_tratamento', 'status'])
+                                       'data_tratamento', 'status', 'problema', 'data_detecao' , 'path'])
 
     # Baseado nos indices de horas 00:00:00, separa os dados por data
     # Faça um loop que vai pegar os indices + expected_rows
