@@ -172,7 +172,6 @@ def processarArquivo(args):
         tipo_completo = 'Solarimetricos'
     elif file_type == 'WD':
         tipo_completo = 'Anemometricos'
-
     try:
         # Agrupa por mês e cria um loop para criar os arquivos
         result_groups = result.groupby(result['timestamp'].dt.to_period('M'))

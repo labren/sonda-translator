@@ -89,44 +89,34 @@ def prequalificarDado(df, tipo_dado, logger, estacao, output_dir):
     # Separa os dados bons e os problemáticos
     good_data = df[df['data'].isin(good_dates)].copy()
     problem_data = df[df['data'].isin(problematic_dates)].copy()
-
     # Adiciona a coluna 'problem_type' nos dados com problemas
     problem_data['problem_type'] = problem_data['data'].apply(lambda d: problems_by_date.get(d))
-    
     # Remove a coluna auxiliar 'data'
     good_data.drop(columns=['data'], inplace=True)
     problem_data.drop(columns=['data'], inplace=True)
-
     if not problem_data.empty:
         # Volta um diretorio do output_dir e cria o diretorio sonda_quarentena
-        quarentena_dir = pathlib.Path(output_dir).parent / 'sonda_quarentena'
+        quarentena_dir = pathlib.Path(output_dir).parent / 'sonda-quarentena'
         # Converte estação para maiúsculo
         estacao = estacao.upper()
         # Cria o diretório base da estação
         estacao_dir = quarentena_dir / estacao
         estacao_dir.mkdir(parents=True, exist_ok=True)
-        
         # Agrupa os dados problemáticos por dia e salva cada dia em um arquivo separado
         for date in problematic_dates:
             # Filtra dados apenas deste dia
             day_data = df[df['data'] == date].copy()
             # Remove a coluna auxiliar 'data'
             day_data.drop(columns=['data'], inplace=True)
-            # Adiciona a coluna de tipo de problema
-            # day_data['problem_type'] = problems_by_date.get(date)
-            
             # Cria nome do arquivo com data (YYYY-MM-DD)
             date_str = date.strftime('%Y-%m-%d')
             problem_file = estacao_dir / f"{estacao}_{tipo_dado}_{date_str}_problemas.csv"
-            
             # Cria diretório por ano/mês (opcional)
             year_month_dir = estacao_dir / f"{date.year}/{date.month:02d}"
             year_month_dir.mkdir(parents=True, exist_ok=True)
             problem_file = year_month_dir / f"{estacao}_{tipo_dado}_{date_str}_problemas.csv"
-            
             # Salva os dados problemáticos deste dia no arquivo CSV
             day_data.to_csv(problem_file, index=False)
-            
             # Log para acompanhamento
             logger.info(f"Dados problemáticos do dia {date_str} salvos em: {problem_file}")
 
@@ -149,13 +139,13 @@ def prequalificarDado(df, tipo_dado, logger, estacao, output_dir):
             'tipo_dado': tipo_dado,
             'data': problematic_dates,
             'problema': [problems_by_date.get(d) for d in problematic_dates],
-            'path': [estacao_dir / f"{estacao}_{tipo_dado}_{d.strftime('%Y-%m-%d')}_problemas.csv" for d in 
+            'path': [estacao_dir / d.strftime('%Y/%m/') / f"{estacao}_{tipo_dado}_{d.strftime('%Y-%m-%d')}_problemas.csv" for d in 
             problematic_dates],
+            'data_tratamento': pd.NaT,
             'status': 'quarentena'
         })
         # Trata espaços em branco de problemas, substitui por um unico espaço
         problem_summary['problema'] = problem_summary['problema'].str.replace(r'\s+', ' ', regex=True)
-
         # Antes de concatenar, verifica se o DataFrame o dado já foi tratado, ou seja, se o status é diferente de 'quarentena', isso deve ser feito com uma comparação entre summary_df e problem_summary
         if not summary_df.empty:
             # Verifica se o dado já foi tratado

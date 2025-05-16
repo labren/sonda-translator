@@ -49,22 +49,22 @@ if __name__ == "__main__":
     parser.add_argument('-tipo', type=str,
                 help='Tipo de dado a ser buscado: SD (Solar Data), MD (Meteorological Data), WD (Wind Data)',
                 choices=['SD', 'MD', 'WD', 'INDEFINIDO', 'TD'])
-    parser.add_argument('-exibir', action='store_true',
-                        help='Exibe os dados filtrados e não executa o processamento')
     parser.add_argument('-parallel', action='store_true',
                         help='Paraleliza o processamento dos arquivos (recomendado para grandes volumes)')
     parser.add_argument('-id', type=int,
                         help='ID específico do arquivo a ser processado')
     parser.add_argument('-output', type=str, default='output/sonda-formatados/',
                         help='Caminho para salvar os arquivos processados')
+    parser.add_argument('-formatar', action='store_true',
+                        help='Ativa a formatação especial para os arquivos de saída')
     parser.add_argument('-overwrite', action='store_true',
                         help='Sobrescreve os arquivos de saída caso já existam')
     parser.add_argument('-ftp_dir', type=str, default='/media/helvecioneto/Barracuda/',
                         help='Diretório base onde estão localizados os arquivos a serem processados')
     parser.add_argument('-scan_ftp', action='store_true',
                         help='Escaneia o diretório FTP para encontrar arquivos .dat')
-    parser.add_argument('-quarentena_id', nargs='+', type=str,
-                        help='Um ou mais IDs de arquivos em quarentena para serem tratados')
+    parser.add_argument('-quarentena', nargs='*', type=str, default=None,
+                        help='Trata arquivos em quarentena através de seus IDs (pode ser fornecido sem IDs ou com um ou mais IDs)')
     
     args = parser.parse_args()
     
@@ -76,6 +76,8 @@ if __name__ == "__main__":
         with open(dat_file_path, 'r') as f:
             dat_files = json.load(f)
             dat_files_df = pd.DataFrame(dat_files)
+            # Altera nome da coluna date para ano
+            dat_files_df.rename(columns={'date': 'ano'}, inplace=True)
             if args.ftp_dir:
                 # Update the 'caminho' column with the FTP directory
                 dat_files_df['caminho'] = dat_files_df['caminho'].apply(lambda x: os.path.join(args.ftp_dir, x))
@@ -97,7 +99,9 @@ if __name__ == "__main__":
 
     # Filter by year if specified
     if args.ano:
-        dat_files_df = dat_files_df[dat_files_df['date'] == args.ano]
+        # Force column 'date' to be int type, if not already
+        dat_files_df['ano'] = dat_files_df['ano'].astype(int)
+        dat_files_df = dat_files_df[dat_files_df['ano'] == int(args.ano)]
 
     # Filter by ID if specified
     if args.id:
@@ -107,16 +111,16 @@ if __name__ == "__main__":
     if args.scan_ftp:
         scan_ftp_main(args.ftp_dir)
 
-    # If quarentena is specified, process the files in quarantine
-    if args.quarentena_id:
-        arquivos_quarentena = tratar_quarentena(args.estacao, args.tipo, args.quarentena_id, 
-                                                args.output, args.overwrite, args.exibir)
+    # If no files are found after filtering, exit
+    if args.quarentena or args.quarentena == []:
+        arquivos_quarentena = tratar_quarentena(args.estacao, args.tipo, args.quarentena, 
+                                                args.output, args.overwrite, not args.formatar)
         exit()
 
-    # Exibe the filtered data
-    if args.exibir:
+    # Exibe os dados filtrados se não for solicitado formatação
+    if not args.formatar:
         # Limita o número de caracteres da coluna 'caminho' para exibição
-        df_to_show = dat_files_df[['id', 'estacao', 'tipo', 'date', 'caminho']].copy()
+        df_to_show = dat_files_df[['id', 'estacao', 'tipo', 'ano', 'caminho']].copy()
         max_caminho_len = 120
         df_to_show['caminho'] = df_to_show['caminho'].apply(lambda x: x[:max_caminho_len] + '...' if len(x) > max_caminho_len else x)
         with pd.option_context('display.max_rows', None, 
