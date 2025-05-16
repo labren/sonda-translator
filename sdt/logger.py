@@ -14,7 +14,7 @@ def setup_logger():
         script_dir = os.path.dirname(script_dir)
     log_file = os.path.join(script_dir, 'error_log.txt')
     file_handler = logging.FileHandler(log_file)
-    formatter = logging.Formatter('----------------------------------------\nDATA DO PROCESSAMENTO: %(asctime)s\nError: %(message)s\n')
+    formatter = logging.Formatter('----------------------------------------\nDATA DO PROCESSAMENTO: %(asctime)s\: %(message)s\n')
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
     return logger

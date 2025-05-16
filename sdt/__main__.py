@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import pathlib
 import pandas as pd
 import tqdm
 from distutils.util import strtobool
@@ -144,11 +145,13 @@ if __name__ == "__main__":
     # Monta barra de progresso
     pbar = tqdm.tqdm(total=len(dat_files_to_process), desc="Processing files", unit="file")
 
+    summary_results = []
+
     # Process files
     if args.parallel:
         # Use multiprocessing to process files in parallel
         with Pool(6) as pool:
-            results = []
+            
             for result in pool.imap(processarArquivo, 
                                     zip(dat_files_to_process, 
                                         dat_files_stations,
@@ -158,7 +161,7 @@ if __name__ == "__main__":
                                         [logger] * len(dat_files_to_process),
                                         [headers] * len(dat_files_to_process),
                                         [header_sensor] * len(dat_files_to_process))):
-                results.append(result)
+                summary_results.append(result)
                 pbar.update()
         pool.close()
         pool.join()
@@ -167,12 +170,55 @@ if __name__ == "__main__":
         for file_path, file_type, estacao in zip(dat_files_to_process,
                                         dat_files_types,
                                         dat_files_stations):
-            processarArquivo((file_path, estacao,
+            result = processarArquivo((file_path, estacao,
                         file_type, args.output,
                         args.overwrite, logger, headers, header_sensor))
             pbar.update()
+            summary_results.append(result)
     pbar.close()
-    print("Processing complete.")
+
+    # Concatenar todos os resultados em um único DataFrame
+    summary_df = pd.concat(summary_results, ignore_index=True)
+
+    # Cria diretorio de quarentena caso não exista, replace sonda-formatados por quarentena
+    quarentena_dir = args.output.replace('sonda-formatados', 'sonda-quarentena')
+    # Cria diretorio caso não exista
+    pathlib.Path(quarentena_dir).mkdir(parents=True, exist_ok=True)
+    quarentena_file = os.path.join(quarentena_dir, 'quarentena.csv')
+    # Verifica se o arquivo ainda não existe
+    if not os.path.exists(quarentena_file):
+        # Cria o arquivo de quarentena
+        summary_df.to_csv(quarentena_file, index=False)
+        quarentena_df = summary_df
+    else:
+        # Se arquivo já existe então lê o arquivo
+        quarentena_df = pd.read_csv(quarentena_file)
+
+    # Filtrar apenas arquivos com status diferente de 'quarentena'
+    novos_arquivos = summary_df[summary_df['status'] != 'quarentena']
+
+    # Adicionar à quarentena apenas se não existirem pelo path
+    if not novos_arquivos.empty:
+        # Criar lista de paths que já existem na quarentena
+        paths_na_quarentena = set(quarentena_df['path'].tolist()) if not quarentena_df.empty else set()
+        
+        # Filtrar apenas arquivos que não existem na quarentena
+        arquivos_para_adicionar = novos_arquivos[~novos_arquivos['path'].isin(paths_na_quarentena)]
+        
+        if not arquivos_para_adicionar.empty:
+            # Concatenar os novos arquivos com o DataFrame de quarentena existente
+            quarentena_df = pd.concat([quarentena_df, arquivos_para_adicionar], ignore_index=True)
+            
+            # Atualizar o arquivo de quarentena
+            quarentena_df.to_csv(quarentena_file, index=False)
+            print(f"Adicionados {len(arquivos_para_adicionar)} arquivos à quarentena.")
+        else:
+            print("Nenhum novo arquivo foi adicionado à quarentena.")
+
+
+
+
+
 
 
 

@@ -29,7 +29,7 @@ def processarArquivo(args):
 
     # Check if the file exists
     if not os.path.exists(file_path):
-        return
+        return pd.DataFrame()
     
     ############################################################################
     ############ Parte 1 - Encontrar o cabeçalho e a linha de dados ############
@@ -46,7 +46,7 @@ def processarArquivo(args):
     except Exception as e:
         logger.error(f"Error 1 - Não foi possível ler o arquivo {file_path} \
             durante o processo de encontrar dados.\nDetalhes do erro: {str(e)}")
-        return
+        return pd.DataFrame()
         
     # Encontra linha de cabeçalho passando por todas as linhas do arquivo
     # A linha de cabeçalho deve conter qualquer uma das palavras-chave
@@ -93,7 +93,7 @@ def processarArquivo(args):
         logger.error(f"Error 2 - Não foi possível ler o arquivo {file_path} \
             durante o processo de encontrar dados.\nDetalhes do erro: {str(e)} \
             Os dados encontrados foram: {data}")
-        return
+        return pd.DataFrame()
     
     # Adiciona o cabeçalho encontrado ao DataFrame
     try:
@@ -101,7 +101,7 @@ def processarArquivo(args):
     except Exception as e:
         logger.error(f"Error 3 - Não foi possível adicionar o cabeçalho ao arquivo {file_path} \
             durante o processo de encontrar dados.\nDetalhes do erro: {str(e)}")
-        return
+        return pd.DataFrame()
 
     # Agora, baseado no tipo iremos procurar o verdadeiro nome das colunas
     try:
@@ -109,7 +109,7 @@ def processarArquivo(args):
     except KeyError:
         # Registra o erro usando o logger
         logger.error(f"Error 4 - Não foi possível encontrar o cabeçalho para o tipo {file_type} no arquivo {file_path}.")
-        return
+        return pd.DataFrame()
     
     # Cria um dicionário para mapear os cabeçalhos encontrados para os cabeçalhos principais
     # O dicionário será criado com os valores do cabeçalho principal como chaves
@@ -143,12 +143,24 @@ def processarArquivo(args):
     result['acronym'] = estacao.upper()
     result['timestamp'] = pd.to_datetime(result['timestamp'], errors='coerce')
 
+     # Encontr atipo completo baseado no file_type
+    # Caso MD, o tipo é Meteorologico
+    # Caso SD, o tipo é Solarimetrico
+    # Caso WD, o tipo é Anemometrico
+    tipo_completo = ''
+    if file_type == 'MD':
+        tipo_completo = 'Meteorologicos'
+    elif file_type == 'SD':
+        tipo_completo = 'Solarimetricos'
+    elif file_type == 'WD':
+        tipo_completo = 'Anemometricos'
+
     ############################################################################
-    ### Parte 3 - Qualificar os dados e salvar o arquivo formatado ###############
+    ### Parte 3 - Pré-Qualificar os dados e salvar o arquivo formatado ###############
     ############################################################################
 
     # Qualifica os dados
-    result = prequalificarDado(result, file_type, logger, estacao, output_dir)
+    result, summary = prequalificarDado(result, file_type, logger, estacao, output_dir, tipo_completo)
 
     # Adiciona subcabeçalho ao DataFrame
     try:
@@ -161,17 +173,6 @@ def processarArquivo(args):
     sub_header = ['', '', '', '', ''] + sub_header
     result.columns = pd.MultiIndex.from_tuples(list(zip(result.columns,sub_header)))
 
-    # Encontr atipo completo baseado no file_type
-    # Caso MD, o tipo é Meteorologico
-    # Caso SD, o tipo é Solarimetrico
-    # Caso WD, o tipo é Anemometrico
-    tipo_completo = ''
-    if file_type == 'MD':
-        tipo_completo = 'Meteorologicos'
-    elif file_type == 'SD':
-        tipo_completo = 'Solarimetricos'
-    elif file_type == 'WD':
-        tipo_completo = 'Anemometricos'
     try:
         # Agrupa por mês e cria um loop para criar os arquivos
         result_groups = result.groupby(result['timestamp'].dt.to_period('M'))
@@ -197,4 +198,7 @@ def processarArquivo(args):
     except:
         # Registra o erro usando o logger
         logger.error(f"Não foi possível criar o arquivo {file_path} durante o processo de salvar os dados.\nDetalhes do erro: {result}")
-        return
+        return summary
+        
+    # Retorna o resumo dos dados
+    return summary

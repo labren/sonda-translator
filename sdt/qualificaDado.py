@@ -1,7 +1,7 @@
 import pandas as pd
 import pathlib
 
-def prequalificarDado(df, tipo_dado, logger, estacao, output_dir):
+def prequalificarDado(df, tipo_dado, logger, estacao, output_dir, tipo_completo):
 
     """
     Função para qualificar os dados de um DataFrame.
@@ -28,141 +28,96 @@ def prequalificarDado(df, tipo_dado, logger, estacao, output_dir):
     else:
         logger.error(f"Error 7 - Error no prequalificaDado: \
             Tipo de dado inválido: {tipo_dado}.")
-        return None
-    
-    # Cria coluna auxiliar 'data' para agrupar por dia
-    df['data'] = df['timestamp'].dt.date
-    
+        return None, None
+        
     # Listas para armazenar as datas consideradas boas ou problemáticas
-    good_dates = []
-    problematic_dates = []
-    # Dicionário para armazenar os problemas encontrados por data
-    problems_by_date = {}
+    good_data = []
+    good_indexes = []
     
     # Número esperado de linhas por dia: 24 horas * 60 minutos = 1440
     expected_rows = int(pd.Timedelta("1 day") / expected_interval)
-    
-    # Itera sobre cada dia
-    for date, group in df.groupby('data'):
 
-        # Agrupa os dados por data e ordena por timestamp
-        group = group.reset_index(drop=True)
+    # Encontra todas as linhas que comecam com a hora 00:00:00 e salva os indices
+    zero_hour_rows = df[df['timestamp'].dt.time == pd.Timestamp("00:00:00").time()].index.tolist()
 
-        problemas = []
-        
-        # Teste 1: Verifica se o primeiro registro é exatamente 00:00:00
-        if group.iloc[0]['timestamp'].time() != pd.Timestamp("00:00:00").time():
-            problemas.append("início não é 00:00:00")
-        
-        # Teste 2: Verifica se a quantidade de registros é a esperada
-        elif len(group) != expected_rows:
+    # Cria um DataFrame vazio para o sumário com as colunas necessárias
+    summary_df = pd.DataFrame(columns=['qid', 'estacao', 'tipo', 'tipo_completo' ,
+                                        'problema', 'data_detecao' , 'path', 'data_tratamento', 'status'])
+
+    # Baseado nos indices de horas 00:00:00, separa os dados por data
+    # Faça um loop que vai pegar os indices + expected_rows
+    for i in zero_hour_rows:
+        # Separa a linha atual + expected_rows
+        group = df.iloc[i:i + expected_rows].copy()
+        indexes = group.index.tolist()
+        problema = ''
+        # Teste 1: Verifica se a quantidade de registros é a esperada
+        if len(group) != expected_rows:
             # Adicione o problema de número de linhas
             if len(group) < expected_rows:
-                problemas.append(f"número de linhas menor que o esperado, \
-                    esperado: {expected_rows}, encontrado: {len(group)}")
+                problema = f"número de linhas menor que o esperado, esperado: {expected_rows}, encontrado: {len(group)}"
             else:
-                problemas.append(f"número de linhas maior que o esperado, \
-                    esperado: {expected_rows}, encontrado: {len(group)}")
+                problema= f"número de linhas maior que o esperado, esperado: {expected_rows}, encontrado: {len(group)}"
         
-        # Teste 3: Verifica se os intervalos entre os registros são consistentes
-        elif not (group['timestamp'].diff().dropna() == expected_interval).all():
-            deltas = group['timestamp'].diff().dropna()
-            # Encontre os índices onde o intervalo não é o esperado
-            inconsistent_intervals = deltas[deltas != expected_interval].index
-            problemas.append(f"intervalos inconsistentes entre os registros, \
-                índices: {inconsistent_intervals.tolist()}")
-            
-        # Teste 4: Verifica se não existem registros duplicados
-        elif group['timestamp'].duplicated().any():
-            # Encontre os índices dos registros duplicados
-            duplicated_indices = group[group['timestamp'].duplicated()].index
-            problemas.append(f"timestamp com registros duplicados, índices: {duplicated_indices.tolist()}")
-
+        # Teste 2: Teste de intervalo temporal
+        init_timestamp = group['timestamp'].min()
+        end_timestamp = group['timestamp'].max()
+        expected_times = pd.date_range(start=init_timestamp, end=end_timestamp, freq=expected_interval)
+        # Verifica se todos os timestamps estão dentro do intervalo esperado
+        if not group['timestamp'].isin(expected_times).all():
+            # Adicione o problema de intervalo
+            problema = f"intervalo temporal fora do esperado, \
+                esperado: {expected_interval}, encontrado: {group['timestamp'].diff().max()}"
+        
         # Se não houver problemas, adiciona a data na lista de dados bons
-        if not problemas:
-            good_dates.append(date)
-        else:
-            problematic_dates.append(date)
-            # Armazena os tipos de problema encontrados para essa data
-            problems_by_date[date] = "; ".join(problemas)
-    
-    # Separa os dados bons e os problemáticos
-    good_data = df[df['data'].isin(good_dates)].copy()
-    problem_data = df[df['data'].isin(problematic_dates)].copy()
-    # Adiciona a coluna 'problem_type' nos dados com problemas
-    problem_data['problem_type'] = problem_data['data'].apply(lambda d: problems_by_date.get(d))
-    # Remove a coluna auxiliar 'data'
-    good_data.drop(columns=['data'], inplace=True)
-    problem_data.drop(columns=['data'], inplace=True)
-    if not problem_data.empty:
-        # Volta um diretorio do output_dir e cria o diretorio sonda_quarentena
-        quarentena_dir = pathlib.Path(output_dir).parent / 'sonda-quarentena'
-        # Converte estação para maiúsculo
-        estacao = estacao.upper()
-        # Cria o diretório base da estação
-        estacao_dir = quarentena_dir / estacao
-        estacao_dir.mkdir(parents=True, exist_ok=True)
-        # Agrupa os dados problemáticos por dia e salva cada dia em um arquivo separado
-        for date in problematic_dates:
-            # Filtra dados apenas deste dia
-            day_data = df[df['data'] == date].copy()
-            # Remove a coluna auxiliar 'data'
-            day_data.drop(columns=['data'], inplace=True)
-            # Cria nome do arquivo com data (YYYY-MM-DD)
-            date_str = date.strftime('%Y-%m-%d')
-            problem_file = estacao_dir / f"{estacao}_{tipo_dado}_{date_str}_problemas.csv"
-            # Cria diretório por ano/mês (opcional)
-            year_month_dir = estacao_dir / f"{date.year}/{date.month:02d}"
-            year_month_dir.mkdir(parents=True, exist_ok=True)
-            problem_file = year_month_dir / f"{estacao}_{tipo_dado}_{date_str}_problemas.csv"
-            # Salva os dados problemáticos deste dia no arquivo CSV
-            day_data.to_csv(problem_file, index=False)
-            # Log para acompanhamento
-            logger.info(f"Dados problemáticos do dia {date_str} salvos em: {problem_file}")
+        if len(problema) == 0:
+            good_data.extend(indexes)
+            good_indexes.extend(indexes)
+            continue
 
-        # Opcional: salvar também um sumário com todos os dias problemáticos
-        summary_file = estacao_dir / f"{estacao}_{tipo_dado}_sumario_problemas.csv"
-        # Abre o arquivo de sumário, se já existir, para adicionar os novos dados
-        if summary_file.exists():
-            summary_df = pd.read_csv(summary_file)
+        # Pega as possiveis datas problemáticas
+        problematic_dates = group['timestamp'].dt.date.unique()
+        # Convert para datetime
+        problematic_dates = pd.to_datetime(problematic_dates)
+        # Cria string das datas problemáticas fazendo join
+        problematic_dates = "_".join([d.strftime('%Y-%m-%d') for d in problematic_dates])
+        # Monta o caminho do arquivo de problemas usando problematic_dates
+        problem_file = pathlib.Path(output_dir).parent / 'sonda-quarentena' / estacao.upper() / tipo_completo / f"{estacao.upper()}_{tipo_dado}_{problematic_dates}_problemas.csv"
+        # Verifica se o arquivo já existe e se as datas problemáticas já estão no arquivo
+        if problem_file.exists():
+            # Lê o arquivo de problemas
+            problem_df = pd.read_csv(problem_file)
+            # Se não estiver, adiciona apenas as novas linhas
+            # Cria um DataFrame com as novas linhas
+            new_rows = group[~group['timestamp'].isin(problem_df['timestamp'])]
+            # Adiciona as novas linhas ao arquivo de problemas
+            new_rows.to_csv(problem_file, mode='a', header=False, index=False)
         else:
-            summary_df = pd.DataFrame()
-        # Pega o maior qid do sumário
-        if not summary_df.empty:
-            max_qid = summary_df['qid'].max()
-        else:
-            max_qid = 0
-        # Adiciona os dados problemáticos ao sumário
-        problem_summary = pd.DataFrame({
-            'qid': range(max_qid + 1, max_qid + len(problematic_dates) + 1),
-            'estacao': estacao,
-            'tipo_dado': tipo_dado,
-            'data': problematic_dates,
-            'problema': [problems_by_date.get(d) for d in problematic_dates],
-            'path': [estacao_dir / d.strftime('%Y/%m/') / f"{estacao}_{tipo_dado}_{d.strftime('%Y-%m-%d')}_problemas.csv" for d in 
-            problematic_dates],
-            'data_tratamento': pd.NaT,
-            'status': 'quarentena'
-        })
-        # Trata espaços em branco de problemas, substitui por um unico espaço
-        problem_summary['problema'] = problem_summary['problema'].str.replace(r'\s+', ' ', regex=True)
-        # Antes de concatenar, verifica se o DataFrame o dado já foi tratado, ou seja, se o status é diferente de 'quarentena', isso deve ser feito com uma comparação entre summary_df e problem_summary
-        if not summary_df.empty:
-            # Verifica se o dado já foi tratado
-            treated_data = summary_df[summary_df['status'] != 'quarentena']
-            # Adiciona os dados tratados ao sumário
-            summary_df = pd.concat([summary_df, treated_data], ignore_index=True)
+            # Se o arquivo não existir, cria o diretório e salva o arquivo
+            problem_file.parent.mkdir(parents=True, exist_ok=True)
+            group.to_csv(problem_file, index=False)
+
+        # Gera o qid a partir do tempo atual
+        qid = pd.Timestamp.now().strftime('%Y%m%d%H%M%S%f')[-10:]
         # Concatena os dados problemáticos com o sumário
+        problem_summary = pd.DataFrame({
+            'qid': [qid],
+            'estacao': [estacao.upper()],
+            'tipo': [tipo_dado],
+            'tipo_completo': [tipo_completo],
+            'problema': [problema],
+            'data_detecao' : [pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')],
+            'path': [problem_file],
+            'data_tratamento': [pd.NaT],
+            'status': ['quarentena']
+        })
+
+        # Adiciona os dados problemáticos ao sumário
         summary_df = pd.concat([summary_df, problem_summary], ignore_index=True)
-        # Remove duplicatas, mantendo o último para todas as colunas
-        summary_df.drop_duplicates(subset=['path'], keep='last', inplace=True)        
-        # Ordena pelo qid
-        summary_df.sort_values(by='qid', ascending=True, inplace=True)
-        # Salva o sumário atualizado
-        summary_file = estacao_dir / f"{estacao}_{tipo_dado}_sumario_problemas.csv"
-        summary_df.to_csv(summary_file, index=False)
 
-    return good_data
+    # Pega apenas os dados bons
+    good_data = df[df.index.isin(good_indexes)].copy()
 
-
+    return good_data, summary_df
+ 
 
