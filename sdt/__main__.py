@@ -120,7 +120,7 @@ if __name__ == "__main__":
     # Exibe os dados filtrados se não for solicitado formatação
     if not args.formatar:
         # Limita o número de caracteres da coluna 'caminho' para exibição
-        df_to_show = dat_files_df[['id', 'estacao', 'tipo', 'ano', 'caminho']].copy()
+        df_to_show = dat_files_df[['id', 'estacao', 'tipo',  'ano', 'is_historico', 'caminho']].copy()
         max_caminho_len = 120
         df_to_show['caminho'] = df_to_show['caminho'].apply(lambda x: x[:max_caminho_len] + '...' if len(x) > max_caminho_len else x)
         with pd.option_context('display.max_rows', None, 
