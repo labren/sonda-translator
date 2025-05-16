@@ -50,6 +50,13 @@ def gerarBase(output_dir, tipo, cabecalhos, overwrite=False):
 
     # Salvar a base de dados meteorológicos em um arquivo parquet
     if counter > 0:
+        # Tratamento para converter valores 3333.0 e -5555.0 para NULL
+        con.execute(f"""
+            UPDATE {nome_base}
+            SET {', '.join([f"{col} = NULL" for col in variaveis if col != 'acronym'])}
+            WHERE {', '.join([f"{col} IN (3333.0, -5555.0)" for col in variaveis if col != 'acronym'])};
+        """)
+
         # Salvar a tabela em um arquivo parquet sem duplicatas
         con.execute(f"""
             COPY (
