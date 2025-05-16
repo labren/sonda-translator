@@ -5,6 +5,7 @@
 *.out
 *.db
 *.parquet
+*.wal
 ftp/
 error_log.txt
 
