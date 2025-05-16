@@ -43,7 +43,7 @@ def gerarBase(output_dir, tipo, cabecalhos, overwrite=False):
     print('')
 
     # Popular a base com os dados
-    processar_arquivos(arquivos[0:5], nome_base, sobreescrever=overwrite)
+    processar_arquivos(arquivos, nome_base, sobreescrever=overwrite)
 
      # Verificar se as tabelas têm dados antes de salvar
     counter = con.execute(f"SELECT COUNT(*) FROM {nome_base}").fetchone()[0]
