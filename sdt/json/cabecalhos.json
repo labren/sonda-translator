@@ -33,11 +33,11 @@
         "lw_raw_std": ["LW_RAW_STD", "lw_raw_std"],
         "lw_raw_max": ["LW_RAW_MAX", "lw_raw_max"],
         "lw_raw_min": ["LW_RAW_MIN", "lw_raw_min"],
-        "tp_glo": ["TP_GLO", "tp_glo"],
-        "tp_dir": ["TP_DIR", "tp_dir"],
-        "tp_dif": ["TP_DIF", "tp_dif"],
-        "tp_lw_dome": ["TP_LW_DOME", "tp_lw_dome"],
-        "tp_lw_case": ["TP_LW_CASE", "tp_lw_case"]
+        "tp_glo": ["TP_GLO", "tp_glo", "temp_glo"],
+        "tp_dir": ["TP_DIR", "tp_dir", "temp_dir"],
+        "tp_dif": ["TP_DIF", "tp_dif", "temp_dif"],
+        "tp_lw_dome": ["TP_LW_DOME", "tp_lw_dome","temp_dome"],
+        "tp_lw_case": ["TP_LW_CASE", "tp_lw_case", "temp_case"]
     },
     "MD":{
         "acronym": [],

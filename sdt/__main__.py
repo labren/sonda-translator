@@ -51,7 +51,7 @@ if __name__ == "__main__":
     parser.add_argument('-tipo', type=str,
                 help='Tipo de dado a ser buscado: SD (Solar Data), MD (Meteorological Data), WD (Wind Data)',
                 choices=['SD', 'MD', 'WD', 'INDEFINIDO', 'TD'])
-    parser.add_argument('-parallel', action='store_true',
+    parser.add_argument('-parallel', type=lambda x: bool(strtobool(x)), default=False,
                         help='Paraleliza o processamento dos arquivos (recomendado para grandes volumes)')
     parser.add_argument('-id', type=int,
                         help='ID específico do arquivo a ser processado')
@@ -87,6 +87,15 @@ if __name__ == "__main__":
     else:
         print(f"Error: File '{dat_file_path}' not found.")
         exit(1)
+
+    # Print de boas vindas falando os parametros que foram passados
+    print(f"Sonda-Translator - Processando arquivos com os seguintes parâmetros:")
+    print(50 * "-")
+    for arg in vars(args):
+        if getattr(args, arg) is not None:
+            print(f"-{arg.upper()}: {getattr(args, arg)}")
+    print(50 * "-")
+    print("Iniciando processamento...\n")
 
     # Apply filters based on parameters
     if args.estacao:
@@ -151,10 +160,8 @@ if __name__ == "__main__":
     dat_files_stations = dat_files_df['estacao'].tolist()
 
     # Monta barra de progresso
-    pbar = tqdm.tqdm(total=len(dat_files_to_process), desc="Processing files", unit="file")
-
+    pbar = tqdm.tqdm(total=len(dat_files_to_process), desc="Processando arquivos:", unit="file")
     summary_results = []
-
     # Process files
     if args.parallel:
         # Use multiprocessing to process files in parallel

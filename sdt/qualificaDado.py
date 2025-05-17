@@ -49,26 +49,32 @@ def prequalificarDado(df, tipo_dado, logger, estacao, output_dir, tipo_completo)
     for i in zero_hour_rows:
         # Separa a linha atual + expected_rows
         group = df.iloc[i:i + expected_rows].copy()
+
         indexes = group.index.tolist()
         problema = ''
+
+        # Monta condições para verificar se o grupo de dados está correto
+        first_date = group['timestamp'].iloc[0].date()
+        expected_last_time = (pd.Timestamp("00:00:00") + (expected_rows - 1) * expected_interval).time()
+        init_timestamp = pd.Timestamp.combine(first_date, pd.Timestamp("00:00:00").time())
+        end_timestamp = pd.Timestamp.combine(first_date, expected_last_time)
+        expected_times = pd.date_range(start=init_timestamp, end=end_timestamp, freq=expected_interval)
+
         # Teste 1: Verifica se a quantidade de registros é a esperada
         if len(group) != expected_rows:
-            # Adicione o problema de número de linhas
             if len(group) < expected_rows:
                 problema = f"número de linhas menor que o esperado, esperado: {expected_rows}, encontrado: {len(group)}"
             else:
                 problema= f"número de linhas maior que o esperado, esperado: {expected_rows}, encontrado: {len(group)}"
-        
-        # Teste 2: Teste de intervalo temporal
-        init_timestamp = group['timestamp'].min()
-        end_timestamp = group['timestamp'].max()
-        expected_times = pd.date_range(start=init_timestamp, end=end_timestamp, freq=expected_interval)
-        # Verifica se todos os timestamps estão dentro do intervalo esperado
-        if not group['timestamp'].isin(expected_times).all():
-            # Adicione o problema de intervalo
-            problema = f"intervalo temporal fora do esperado, \
-                esperado: {expected_interval}, encontrado: {group['timestamp'].diff().max()}"
-        
+
+        # Teste 2: Verifica se o primeiro timestamp é o esperado
+        elif group['timestamp'].iloc[-1].time() != expected_last_time:
+            problema = f"último timestamp não é o esperado, esperado: {expected_last_time}, encontrado: {group['timestamp'].iloc[-1].time()}"
+
+        # Teste 3: Teste de intervalo temporal: Verifica se o intervalo entre os timestamps é o esperado        
+        elif not group['timestamp'].isin(expected_times).all():
+            problema = f"intervalo temporal fora do esperado, esperado: {expected_interval}, encontrado: {group['timestamp'].diff().max()}"
+                         
         # Se não houver problemas, adiciona a data na lista de dados bons
         if len(problema) == 0:
             good_data.extend(indexes)
