@@ -31,7 +31,7 @@ def gerarBase(output_dir, tipo, cabecalhos, overwrite=False):
     nome_base = tipo_completo.split('.')[0].upper()
 
     # Procurar por arquivos CSV no diretório de saída que contenham o tipo
-    arquivos = glob.glob(os.path.join(output_dir, '**', f'*{tipo}*.csv'), recursive=True)[0:3]
+    arquivos = glob.glob(os.path.join(output_dir, '**', f'*{tipo}*.csv'), recursive=True)
     if len(arquivos) == 0:
         raise ValueError(f"Nenhum arquivo encontrado para o tipo {tipo} no diretório {output_dir}.")
     # Pega primeiro arquivo pra servir de base
@@ -72,7 +72,7 @@ def gerarBase(output_dir, tipo, cabecalhos, overwrite=False):
                     ELSE try_cast({col} AS DOUBLE)
                 END AS {col}
                 """)
-                
+
         # Executa a query
         con.execute(f"""
             CREATE OR REPLACE TABLE {nome_base} AS
