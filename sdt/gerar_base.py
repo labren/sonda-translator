@@ -50,12 +50,26 @@ def gerarBase(output_dir, tipo, cabecalhos, overwrite=False):
 
     # Salvar a base de dados meteorológicos em um arquivo parquet
     if counter > 0:
-        # Tratamento para converter valores 3333.0 e -5555.0 para NULL
-        con.execute(f"""
-            UPDATE {nome_base}
-            SET {', '.join([f"{col} = NULL" for col in variaveis if col != 'acronym'])}
-            WHERE {', '.join([f"{col} IN (3333.0, -5555.0)" for col in variaveis if col != 'acronym'])};
-        """)
+        # Substitui 3333.0 e -5555.0 por NULL, exceto na coluna 'acronym'
+        # Primeiro, obter a lista de colunas que realmente existem na tabela
+        colunas_existentes = con.execute(f"PRAGMA table_info({nome_base})").fetchall()
+        nomes_colunas = [col[1] for col in colunas_existentes]  # col[1] contém o nome da coluna
+
+        # Criar expressões de atualização apenas para colunas que existem
+        update_exprs = [
+            f"{col} = CASE WHEN {col} IN (3333.0, -5555.0) THEN NULL ELSE {col} END"
+            for col in variaveis if col != 'acronym' and col in nomes_colunas
+        ]
+
+        # Verificar se há expressões para atualizar
+        if update_exprs:
+            update_sql = f"""
+                UPDATE {nome_base}
+                SET {', '.join(update_exprs)};
+            """
+            con.execute(update_sql)
+        else:
+            print(f"Nenhuma coluna válida para atualizar na tabela {nome_base}.")
 
         # Salvar a tabela em um arquivo parquet sem duplicatas
         con.execute(f"""
