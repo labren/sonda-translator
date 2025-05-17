@@ -31,47 +31,57 @@ def gerarBase(output_dir, tipo, cabecalhos, overwrite=False):
     nome_base = tipo_completo.split('.')[0].upper()
 
     # Procurar por arquivos CSV no diretório de saída que contenham o tipo
-    arquivos = glob.glob(os.path.join(output_dir, '**', f'*{tipo}*.csv'), recursive=True)
+    arquivos = glob.glob(os.path.join(output_dir, '**', f'*{tipo}*.csv'), recursive=True)[0:3]
     if len(arquivos) == 0:
         raise ValueError(f"Nenhum arquivo encontrado para o tipo {tipo} no diretório {output_dir}.")
     # Pega primeiro arquivo pra servir de base
     arquivo = arquivos[0]
     # Criar base
     criar_base(arquivo, nome_base, variaveis)
-
     print(50 * '-')
     print('')
 
     # Popular a base com os dados
     processar_arquivos(arquivos, nome_base, sobreescrever=overwrite)
 
-     # Verificar se as tabelas têm dados antes de salvar
+    # Verificar se as tabelas têm dados antes de salvar
     counter = con.execute(f"SELECT COUNT(*) FROM {nome_base}").fetchone()[0]
 
     # Salvar a base de dados meteorológicos em um arquivo parquet
     if counter > 0:
-        # Substitui 3333.0 e -5555.0 por NULL, exceto na coluna 'acronym'
-        # Primeiro, obter a lista de colunas que realmente existem na tabela
-        colunas_existentes = con.execute(f"PRAGMA table_info({nome_base})").fetchall()
-        nomes_colunas = [col[1] for col in colunas_existentes]  # col[1] contém o nome da coluna
+        # Obter nomes e tipos das colunas
+        schema = con.execute(f"DESCRIBE SELECT * FROM {nome_base}").fetchdf()
+        colunas = schema['column_name'].tolist()
 
-        # Criar expressões de atualização apenas para colunas que existem
-        update_exprs = [
-            f"{col} = CASE WHEN {col} IN (3333.0, -5555.0) THEN NULL ELSE {col} END"
-            for col in variaveis if col != 'acronym' and col in nomes_colunas
-        ]
+        # Valores a substituir por NULL
+        valores_a_nular = [3333.0, -5555.0]
+        valores_str = ', '.join(str(v) for v in valores_a_nular)
 
-        # Verificar se há expressões para atualizar
-        if update_exprs:
-            update_sql = f"""
-                UPDATE {nome_base}
-                SET {', '.join(update_exprs)};
-            """
-            con.execute(update_sql)
-        else:
-            print(f"Nenhuma coluna válida para atualizar na tabela {nome_base}.")
+        # Expressões: manter as 4 primeiras colunas como estão, aplicar lógica nas restantes
+        exprs = []
+
+        for i, col in enumerate(colunas):
+            if i < 4:
+                # Primeiras 4 colunas: mantém sem alteração
+                exprs.append(col)
+            else:
+                # A partir da 5ª coluna: cast para DOUBLE + nulos para valores indesejados
+                exprs.append(f"""
+                CASE 
+                    WHEN try_cast({col} AS DOUBLE) IN ({valores_str}) THEN NULL
+                    ELSE try_cast({col} AS DOUBLE)
+                END AS {col}
+                """)
+                
+        # Executa a query
+        con.execute(f"""
+            CREATE OR REPLACE TABLE {nome_base} AS
+            SELECT {', '.join(exprs)}
+            FROM {nome_base}
+        """)
 
         # Salvar a tabela em um arquivo parquet sem duplicatas
+        print(f"Salvando tabela em arquivo parquet: {output_base + tipo_completo}")
         con.execute(f"""
             COPY (
                 SELECT DISTINCT *
@@ -79,6 +89,8 @@ def gerarBase(output_dir, tipo, cabecalhos, overwrite=False):
             )
             TO '{output_base + tipo_completo}' (FORMAT 'parquet');
         """)
+
+        
     else:
         print(f"A tabela {nome_base} está vazia. Nenhum arquivo parquet foi criado.")
     
