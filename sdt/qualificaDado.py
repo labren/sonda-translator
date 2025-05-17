@@ -36,6 +36,7 @@ def prequalificarDado(df, tipo_dado, logger, estacao, output_dir, tipo_completo)
     
     # Número esperado de linhas por dia: 24 horas * 60 minutos = 1440
     expected_rows = int(pd.Timedelta("1 day") / expected_interval)
+    expected_last_time = (pd.Timestamp("00:00:00") + (expected_rows - 1) * expected_interval).time()
 
     # Encontra todas as linhas que comecam com a hora 00:00:00 e salva os indices
     zero_hour_rows = df[df['timestamp'].dt.time == pd.Timestamp("00:00:00").time()].index.tolist()
@@ -53,12 +54,8 @@ def prequalificarDado(df, tipo_dado, logger, estacao, output_dir, tipo_completo)
         indexes = group.index.tolist()
         problema = ''
 
-        # Monta condições para verificar se o grupo de dados está correto
-        first_date = group['timestamp'].iloc[0].date()
-        expected_last_time = (pd.Timestamp("00:00:00") + (expected_rows - 1) * expected_interval).time()
-        init_timestamp = pd.Timestamp.combine(first_date, pd.Timestamp("00:00:00").time())
-        end_timestamp = pd.Timestamp.combine(first_date, expected_last_time)
-        expected_times = pd.date_range(start=init_timestamp, end=end_timestamp, freq=expected_interval)
+        # Coleta os timestamps da coluna 'timestamp' e calcula os intervalos
+        time_diffs = group['timestamp'].diff().dropna()
 
         # Teste 1: Verifica se a quantidade de registros é a esperada
         if len(group) != expected_rows:
@@ -72,8 +69,15 @@ def prequalificarDado(df, tipo_dado, logger, estacao, output_dir, tipo_completo)
             problema = f"último timestamp não é o esperado, esperado: {expected_last_time}, encontrado: {group['timestamp'].iloc[-1].time()}"
 
         # Teste 3: Teste de intervalo temporal: Verifica se o intervalo entre os timestamps é o esperado        
-        elif not group['timestamp'].isin(expected_times).all():
-            problema = f"intervalo temporal fora do esperado, esperado: {expected_interval}, encontrado: {group['timestamp'].diff().max()}"
+        elif not (time_diffs == expected_interval).all():
+            # Identifica os índices onde o intervalo está fora do esperado
+            idxs_problema = time_diffs[time_diffs != expected_interval].index.tolist()
+            # Exibe os timestamps problemáticos usando strftime para detalhar
+            timestamps_problema = group.loc[idxs_problema, 'timestamp'].dt.strftime('%Y-%m-%d %H:%M:%S').tolist()
+            problema = (
+                f"intervalo temporal fora do esperado com intervalo de {expected_interval.total_seconds()} segundos, "
+                f"timestamps problemáticos: {timestamps_problema}"
+            )
                          
         # Se não houver problemas, adiciona a data na lista de dados bons
         if len(problema) == 0:
