@@ -188,7 +188,7 @@ def processarArquivo(args):
             # Verifica se existem linhas duplicadas
             if group.duplicated().any():
                 # Registra o erro usando o logger
-                logger.error(f"WARNING - O arquivo {file_path} contém linhas duplicadas.")
+                # logger.error(f"WARNING - O arquivo {file_path} contém linhas duplicadas.")
                 # Remove as linhas duplicadas
                 group = group.drop_duplicates()
             # Verifica se o arquivo já existe
