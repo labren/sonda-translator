@@ -17,13 +17,13 @@ def tratar_quarentena(estacao, tipo, quarentena_id, output, overwrite=False, exi
     # Lê o arquivo de quarentena
     quarentena_df_main = pd.read_csv(quarentena_file)
 
-    # Tenta fazer filtro por estacao
-    try:
-        estacao = [i.upper() for i in estacao]
-        quarentena_df_main = quarentena_df_main[quarentena_df_main['estacao'].isin(estacao)]
-    except Exception as e:
-        print(f"Erro ao filtrar por estacao: {e}")
-        return
+    if len(estacao) > 0:
+        try:
+            estacao = [i.upper() for i in estacao]
+            quarentena_df_main = quarentena_df_main[quarentena_df_main['estacao'].isin(estacao)]
+        except Exception as e:
+            print(f"Erro ao filtrar por estacao: {e}")
+            return
     
     if tipo:
         # Tenta fazer filtro por tipo
