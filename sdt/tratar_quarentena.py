@@ -4,16 +4,8 @@ import os
 import pathlib
 from carregaCabecalhos import carregaCabecalhos
 
-def tratar_quarentena(estacao, tipo, quarentena_id, output, overwrite=False, exibir=False):
+def tratar_quarentena(estacao, tipo, quarentena_id, output, overwrite=False, exibir=False, tratado=False):
 
-    # Pega primeiro elemento da estacao
-    estacao = estacao[0]
-    # Verifica se estacao é uma string
-    if not isinstance(estacao, str):
-        raise ValueError("A estação deve ser uma string, voce passou: {}".format(type(estacao)))
-    # Verifica se tipo é uma string
-    if not isinstance(tipo, str):
-        raise ValueError("O tipo deve ser uma string, voce passou: {}".format(type(tipo)))
     # Remove 'sonda-formatados/' que existe no output
     output = output.replace('sonda-formatados/', '')
     # Verifica se arquivo de quarentena existe
@@ -25,6 +17,26 @@ def tratar_quarentena(estacao, tipo, quarentena_id, output, overwrite=False, exi
     # Lê o arquivo de quarentena
     quarentena_df_main = pd.read_csv(quarentena_file)
 
+    # Tenta fazer filtro por estacao
+    try:
+        estacao = [i.upper() for i in estacao]
+        quarentena_df_main = quarentena_df_main[quarentena_df_main['estacao'].isin(estacao)]
+    except Exception as e:
+        print(f"Erro ao filtrar por estacao: {e}")
+        return
+    
+    if tipo:
+        # Tenta fazer filtro por tipo
+        try:
+            quarentena_df_main = quarentena_df_main[quarentena_df_main['tipo'] == tipo]
+        except Exception as e:
+            print(f"Erro ao filtrar por tipo: {e}")
+            return
+    
+    if tratado:
+        # Filtra apenas os arquivos tratados
+        quarentena_df_main = quarentena_df_main[quarentena_df_main['status'] != 'quarentena']
+
     try:
         quarentena_id = [int(i) for i in quarentena_id]
     except Exception:
@@ -35,15 +47,18 @@ def tratar_quarentena(estacao, tipo, quarentena_id, output, overwrite=False, exi
         quarentena_df = quarentena_df_main[quarentena_df_main['qid'].isin(quarentena_id)]
     else:
         quarentena_df = quarentena_df_main.copy()
+        
 
     max_len = 45
     quarentena_display = quarentena_df.copy()
     quarentena_display['path'] = quarentena_display['path'].apply(lambda x: '...'+ x[-max_len:] if len(x) > max_len else x)
-    print(f"Lista de arquivos de quarentena para a estação {estacao.upper()} e tipo {tipo}:")
+    print(f"Lista de arquivos de quarentena para a estação")
     print(quarentena_display[['qid', 'estacao', 'tipo', 'status','data_tratamento','problema','path']].to_string(index=False))
     print('-'*50)
     print('')
     # input("Pressione Enter para continuar ou Ctrl+C para cancelar...")
+
+    exit()
     
     # Carrega os cabeçalhos e os sensores a partir de arquivos JSON.
     _, header_sensor = carregaCabecalhos()

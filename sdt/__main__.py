@@ -67,6 +67,8 @@ if __name__ == "__main__":
                         help='Escaneia o diretório FTP para encontrar arquivos .dat')
     parser.add_argument('-quarentena', nargs='*', type=str, default=None,
                         help='Trata arquivos em quarentena através de seus IDs (pode ser fornecido sem IDs ou com um ou mais IDs)')
+    parser.add_argument('-quarentena_tratado', type=lambda x: bool(strtobool(x)), default=False,
+                        help='Trata arquivos em quarentena que já foram tratados')
     parser.add_argument('-gerar_base', action='store_true',
                         help='Gera base de dados dos arquivos formatados')
     args = parser.parse_args()
@@ -126,7 +128,8 @@ if __name__ == "__main__":
     # If no files are found after filtering, exit
     if args.quarentena or args.quarentena == []:
         arquivos_quarentena = tratar_quarentena(args.estacao, args.tipo, args.quarentena, 
-                                                args.output, args.overwrite, not args.formatar)
+                                                args.output, args.overwrite, not args.formatar, 
+                                                args.quarentena_tratado)
         exit()
 
     # Exibe os dados filtrados se não for solicitado formatação
