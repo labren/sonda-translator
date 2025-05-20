@@ -56,9 +56,7 @@ def tratar_quarentena(estacao, tipo, quarentena_id, output, overwrite=False, exi
     print(quarentena_display[['qid', 'estacao', 'tipo', 'status','data_tratamento','problema','path']].to_string(index=False))
     print('-'*50)
     print('')
-    # input("Pressione Enter para continuar ou Ctrl+C para cancelar...")
-
-    exit()
+    input("Pressione Enter para continuar ou Ctrl+C para cancelar...")
     
     # Carrega os cabeçalhos e os sensores a partir de arquivos JSON.
     _, header_sensor = carregaCabecalhos()
