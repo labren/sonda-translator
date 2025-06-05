@@ -52,6 +52,7 @@ def processarArquivo(args):
     # A linha de cabeçalho deve conter qualquer uma das palavras-chave
     # 'TIMESTAMP', 'RECORD', 'Id', 'Year', 'Jday', 'Min'. 
     # Caso contrário, a linha de cabeçalho será None.
+    # TODO: Verificar em alguns casos pois as variáveis podem não ser exatamente desta forma.
     header_row = None
     for i, row in find_data.iterrows():
         if any(keyword in str(row) for keyword in ['TIMESTAMP', 'RECORD', 'Id', 'Year', 'Jday', 'Min']):
