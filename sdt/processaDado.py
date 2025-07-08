@@ -3,7 +3,7 @@ import duckdb
 import pandas as pd
 import pathlib
 import warnings
-from qualificaDado import prequalificarDado
+from prequalificaDado import prequalificarDado
 warnings.filterwarnings("ignore")
 
 
@@ -30,7 +30,6 @@ def processarArquivo(args):
     # Check if the file exists
     if not os.path.exists(file_path):
         return pd.DataFrame()
-    
     ############################################################################
     ############ Parte 1 - Encontrar o cabeçalho e a linha de dados ############
     ############################################################################
@@ -40,14 +39,14 @@ def processarArquivo(args):
         find_data = duckdb.query(f"""
             SELECT * 
             FROM read_csv_auto('{file_path}',
-            ignore_errors=true)
+            ignore_errors=true, strict_mode=false)
             LIMIT 10
         """).df()
     except Exception as e:
         logger.error(f"Error 1 - Não foi possível ler o arquivo {file_path} \
             durante o processo de encontrar dados.\nDetalhes do erro: {str(e)}")
         return pd.DataFrame()
-        
+
     # Encontra linha de cabeçalho passando por todas as linhas do arquivo
     # A linha de cabeçalho deve conter qualquer uma das palavras-chave
     # 'TIMESTAMP', 'RECORD', 'Id', 'Year', 'Jday', 'Min'. 
@@ -58,7 +57,6 @@ def processarArquivo(args):
         if any(keyword in str(row) for keyword in ['TIMESTAMP', 'RECORD', 'Id', 'Year', 'Jday', 'Min']):
             header_row = i
             break
-
     # Se a linha de cabeçalho não for encontrada, pega os valores da primeira linha
     # e coloca como cabeçalho, caso contrário será um cabeçalho vazio com o mesmo numero de colunas
     # do arquivo.
@@ -81,7 +79,6 @@ def processarArquivo(args):
     ############################################################################
     ### Parte 2 - Ler o arquivo novamente com o cabeçalho e a linha de dados ###
     ############################################################################
-
     # Abre o arquivo novamente, agora com o cabeçalho e a linha de dados encontrados
     try:
         data = duckdb.query(f"""
@@ -89,13 +86,13 @@ def processarArquivo(args):
             FROM read_csv_auto('{file_path}',
             ignore_errors=true,
             skip={data_row})
+            LIMIT 5000
         """).df()
     except Exception as e:
         logger.error(f"Error 2 - Não foi possível ler o arquivo {file_path} \
             durante o processo de encontrar dados.\nDetalhes do erro: {str(e)} \
             Os dados encontrados foram: {data}")
         return pd.DataFrame()
-    
     # Adiciona o cabeçalho encontrado ao DataFrame
     try:
         data.columns = header_row
@@ -103,15 +100,14 @@ def processarArquivo(args):
         logger.error(f"Error 3 - Não foi possível adicionar o cabeçalho ao arquivo {file_path} \
             durante o processo de encontrar dados.\nDetalhes do erro: {str(e)}")
         return pd.DataFrame()
-
     # Agora, baseado no tipo iremos procurar o verdadeiro nome das colunas
+    main_header = headers[file_type]
     try:
         main_header = headers[file_type]
     except KeyError:
         # Registra o erro usando o logger
         logger.error(f"Error 4 - Não foi possível encontrar o cabeçalho para o tipo {file_type} no arquivo {file_path}.")
         return pd.DataFrame()
-    
     # Cria um dicionário para mapear os cabeçalhos encontrados para os cabeçalhos principais
     # O dicionário será criado com os valores do cabeçalho principal como chaves
     normalized_headers = {}
@@ -140,11 +136,10 @@ def processarArquivo(args):
         # Registra o erro usando o logger
         logger.error(f"WARNING - O arquivo {file_path} contém colunas que não foram processadas: {outros_dados.columns.tolist()}")
 
-    # Adiciona colunas extras ao DataFrame
+ 
+    # Converte acronym para maiúsculas
     result['acronym'] = estacao.upper()
-    result['timestamp'] = pd.to_datetime(result['timestamp'], errors='coerce')
-
-     # Encontr atipo completo baseado no file_type
+    # Encontr atipo completo baseado no file_type
     # Caso MD, o tipo é Meteorologico
     # Caso SD, o tipo é Solarimetrico
     # Caso WD, o tipo é Anemometrico
@@ -160,53 +155,65 @@ def processarArquivo(args):
     ### Parte 3 - Pré-Qualificar os dados e salvar o arquivo formatado ###############
     ############################################################################
 
-    # Qualifica os dados
-    result, summary = prequalificarDado(result, file_type, logger, estacao, output_dir, tipo_completo)
+    # Cria um DataFrame vazio para o sumário com as colunas necessárias
+    summary_df = pd.DataFrame(columns=['qid', 'estacao', 'tipo', 'tipo_completo' ,
+                                       'data_tratamento', 'status', 'problema', 'data_detecao' , 'path'])
 
-    # Adiciona subcabeçalho ao DataFrame
-    try:
-        sub_header = header_sensor[estacao][file_type]
-    except KeyError:
-        # Registra o erro usando o logger
-        logger.error(f"Error 6 - Não foi possível encontrar o cabeçalho para a estação {estacao} e tipo {file_type} no arquivo {file_path}, um subcabeçalho vazio será adicionado.")
-        sub_header = [''] * len(result.columns)
-    # Adiciona o subcabeçalho ao DataFrame
-    sub_header = ['', '', '', '', ''] + sub_header
-    result.columns = pd.MultiIndex.from_tuples(list(zip(result.columns,sub_header)))
+    # Prequalifica os dados, separando os bons e ruins, e retorna o resumo
+    good_data, bad_data, summary = prequalificarDado(result, file_type, logger, estacao, output_dir, tipo_completo)
 
-    try:
-        # Agrupa por mês e cria um loop para criar os arquivos
-        result_groups = result.groupby(result['timestamp'].dt.to_period('M'))
-        for period, group in result_groups:
-            # Cria o nome do arquivo, o padrão é: SMS_YYYY_MM_SD_formatado.csv
-            file_name = f"{estacao.upper()}_{period.year}_{period.month:02d}_{file_type}_formatado.csv"
-            # O output_path será sempre output_dir + estacao + tipo_completo + ano
-            output_path = os.path.join(output_dir, estacao.upper(), tipo_completo, str(period.year))
-            # Verifica se o arquivo já existe, caso exista verifica flag de overwrite, acaso não exista, cria o arquivo, caso exista e a flag overwrite for False, pula a criação do arquivo
-            file_path = os.path.join(output_path, file_name)
-            # Cria diretorio caso não exista
-            pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
-            # Verifica se existem linhas duplicadas
-            if group.duplicated().any():
-                # Registra o erro usando o logger
-                # logger.error(f"WARNING - O arquivo {file_path} contém linhas duplicadas.")
-                # Remove as linhas duplicadas
-                group = group.drop_duplicates()
-            # Verifica se o arquivo já existe
-            if os.path.exists(file_path):
-                if not overwrite:
-                    continue
-                else:
-                    group.to_csv(file_path, index=False)
-            else:
-                # Cria diretorio caso não exista
-                pathlib.Path(output_path).mkdir(parents=True, exist_ok=True)
-                # Cria o arquivo
-                group.to_csv(file_path, index=False)
-    except:
-        # Registra o erro usando o logger
-        logger.error(f"Não foi possível criar o arquivo {file_path} durante o processo de salvar os dados.\nDetalhes do erro: {result}")
-        return summary
+    # Loop para escrever os dados bons em arquivos separados
+    for good_df in good_data:
+        # Adiciona subcabeçalho ao DataFrame
+        try:
+            sub_header = header_sensor[estacao][file_type]
+        except KeyError:
+            # Registra o erro usando o logger
+            logger.error(f"Error 6 - Não foi possível encontrar o cabeçalho para a estação {estacao} e tipo {file_type} no arquivo {file_path}, um subcabeçalho vazio será adicionado.")
+            sub_header = [''] * len(good_df.columns)
+        # Adiciona o subcabeçalho ao DataFrame
+        sub_header = ['', '', '', '', ''] + sub_header
+        good_df.columns = pd.MultiIndex.from_tuples(list(zip(good_df.columns,sub_header)))
+        print(good_df)
+
+
+    return summary_df
+
+    
+
+    # try:
+    #     # Agrupa por mês e cria um loop para criar os arquivos
+    #     result_groups = result.groupby(result['timestamp'].dt.to_period('M'))
+    #     for period, group in result_groups:
+    #         # Cria o nome do arquivo, o padrão é: SMS_YYYY_MM_SD_formatado.csv
+    #         file_name = f"{estacao.upper()}_{period.year}_{period.month:02d}_{file_type}_formatado.csv"
+    #         # O output_path será sempre output_dir + estacao + tipo_completo + ano
+    #         output_path = os.path.join(output_dir, estacao.upper(), tipo_completo, str(period.year))
+    #         # Verifica se o arquivo já existe, caso exista verifica flag de overwrite, acaso não exista, cria o arquivo, caso exista e a flag overwrite for False, pula a criação do arquivo
+    #         file_path = os.path.join(output_path, file_name)
+    #         # Cria diretorio caso não exista
+    #         pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
+    #         # Verifica se existem linhas duplicadas
+    #         if group.duplicated().any():
+    #             # Registra o erro usando o logger
+    #             # logger.error(f"WARNING - O arquivo {file_path} contém linhas duplicadas.")
+    #             # Remove as linhas duplicadas
+    #             group = group.drop_duplicates()
+    #         # Verifica se o arquivo já existe
+    #         if os.path.exists(file_path):
+    #             if not overwrite:
+    #                 continue
+    #             else:
+    #                 group.to_csv(file_path, index=False)
+    #         else:
+    #             # Cria diretorio caso não exista
+    #             pathlib.Path(output_path).mkdir(parents=True, exist_ok=True)
+    #             # Cria o arquivo
+    #             group.to_csv(file_path, index=False)
+    # except:
+    #     # Registra o erro usando o logger
+    #     logger.error(f"Não foi possível criar o arquivo {file_path} durante o processo de salvar os dados.\nDetalhes do erro: {result}")
+    #     return summary
         
     # Retorna o resumo dos dados
-    return summary
+    # return summary

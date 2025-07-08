@@ -1,4 +1,4 @@
-pandas
-duckdb
-tqdm
-pyarrow
+pandas==2.3.1
+duckdb==1.2.2
+tqdm==4.67.1
+pyarrow==20.0.0
