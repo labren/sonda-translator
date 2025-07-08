@@ -86,7 +86,6 @@ def processarArquivo(args):
             FROM read_csv_auto('{file_path}',
             ignore_errors=true,
             skip={data_row})
-            LIMIT 5000
         """).df()
     except Exception as e:
         logger.error(f"Error 2 - Não foi possível ler o arquivo {file_path} \
@@ -136,9 +135,8 @@ def processarArquivo(args):
         # Registra o erro usando o logger
         logger.error(f"WARNING - O arquivo {file_path} contém colunas que não foram processadas: {outros_dados.columns.tolist()}")
 
- 
     # Converte acronym para maiúsculas
-    result['acronym'] = estacao.upper()
+    # result['acronym'] = estacao.upper()
     # Encontr atipo completo baseado no file_type
     # Caso MD, o tipo é Meteorologico
     # Caso SD, o tipo é Solarimetrico
@@ -146,10 +144,13 @@ def processarArquivo(args):
     tipo_completo = ''
     if file_type == 'MD':
         tipo_completo = 'Meteorologicos'
+        expct_freq = pd.Timedelta(minutes=10)
     elif file_type == 'SD':
         tipo_completo = 'Solarimetricos'
+        expct_freq = pd.Timedelta(minutes=1)
     elif file_type == 'WD':
         tipo_completo = 'Anemometricos'
+        expct_freq = pd.Timedelta(minutes=10)
 
     ############################################################################
     ### Parte 3 - Pré-Qualificar os dados e salvar o arquivo formatado ###############
@@ -162,24 +163,47 @@ def processarArquivo(args):
     # Prequalifica os dados, separando os bons e ruins, e retorna o resumo
     good_data, bad_data, summary = prequalificarDado(result, file_type, logger, estacao, output_dir, tipo_completo)
 
-    # Loop para escrever os dados bons em arquivos separados
-    for good_df in good_data:
-        # Adiciona subcabeçalho ao DataFrame
-        try:
-            sub_header = header_sensor[estacao][file_type]
-        except KeyError:
-            # Registra o erro usando o logger
-            logger.error(f"Error 6 - Não foi possível encontrar o cabeçalho para a estação {estacao} e tipo {file_type} no arquivo {file_path}, um subcabeçalho vazio será adicionado.")
-            sub_header = [''] * len(good_df.columns)
-        # Adiciona o subcabeçalho ao DataFrame
-        sub_header = ['', '', '', '', ''] + sub_header
-        good_df.columns = pd.MultiIndex.from_tuples(list(zip(good_df.columns,sub_header)))
-        print(good_df)
+    # Cria um DataFrame para os dados bons
+    if len(good_data) > 0:
+        # Concatena os dados bons
+        good_data = pd.concat(good_data, ignore_index=True)
+        # Dados bons devem ser reagrupados por mês e separados em arquivos
+        monthly_good_data = good_data.groupby(good_data['timestamp'].dt.to_period('M'))
+        # Loop para escrever os dados bons em arquivos separados
+        for period, group in monthly_good_data:
+            # Remove duplicatas no timestamp
+            group = group.drop_duplicates(subset='timestamp')
+            # 1. Início do mês
+            start = group['timestamp'].min().replace(day=1).normalize()
+            # 2. Fim do mês (último dia às 23:59:59)
+            end = (start + pd.offsets.MonthBegin(1)).replace(day=1) + pd.offsets.MonthEnd(0)
+            end = end + pd.Timedelta(hours=23, minutes=59, seconds=59)
+            # 3. Criar novo índice mensal com a frequência desejada
+            novo_indice = pd.date_range(start=start, end=end, freq=expct_freq)
+            # 4. Reindexar e preencher
+            group = group.set_index('timestamp')
+            group = group.reindex(novo_indice)
+            group = group.rename_axis('timestamp').reset_index()
+            group['acronym'] = estacao.upper()
+            
+            print(group)
+            # Verifica se arquivo já existe
 
 
     return summary_df
 
     
+# Adiciona subcabeçalho ao DataFrame
+        # try:
+        #     sub_header = header_sensor[estacao][file_type]
+        # except KeyError:
+        #     # Registra o erro usando o logger
+        #     logger.error(f"Error 6 - Não foi possível encontrar o cabeçalho para a estação {estacao} e tipo {file_type} no arquivo {file_path}, um subcabeçalho vazio será adicionado.")
+        #     sub_header = [''] * len(good_df.columns)
+        # # Adiciona o subcabeçalho ao DataFrame
+        # sub_header = ['', '', '', '', ''] + sub_header
+        # good_df.columns = pd.MultiIndex.from_tuples(list(zip(good_df.columns,sub_header)))
+
 
     # try:
     #     # Agrupa por mês e cria um loop para criar os arquivos

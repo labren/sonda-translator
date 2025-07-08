@@ -20,6 +20,13 @@ def testeTemporal(df, expected_rows, expct_freq, expected_last_time):
     # Tratamento 2: Converte a coluna 'timestamp' para datetime, ignorando erros
     df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
 
+    # Verifica se tem dados suficientes
+    if df['timestamp'].isnull().all():
+        return (
+            "não há dados suficientes para realizar o teste temporal, "
+            "todos os valores de 'timestamp' são inválidos."
+        , df_orig)
+
     # Critério 1. As DATAS dentro de cada intervalo devem ser iguais (mesmo dia)
     # Ou seja, pega o dia do primeiro timestamp e verifica se todos os outros timestamps
     # pertencem ao mesmo dia.
@@ -41,10 +48,14 @@ def testeTemporal(df, expected_rows, expct_freq, expected_last_time):
     ## Critério 2. A progressão de cada dia deve ser monotônica e crescente
     elif not df['timestamp'].is_monotonic_increasing:
         # Encontre os indices onde a progressão não é monotônica
-        idxs_nao_monotonicos = df[~df['timestamp'].is_monotonic_increasing].index.tolist()
+        try:
+            idxs_nao_monotonicos = df[~df['timestamp'].is_monotonic_increasing].index.tolist()
+        except Exception as e:
+            idxs_nao_monotonicos = []
         return (
             f"progressão de timestamps não é monotônica crescente, "
             f"índices problemáticos: {idxs_nao_monotonicos}"
+        , df_orig
         )
     # Critério 3. Verifica se o numero total de registros dentro de cada intervalo é superior a 12 horas
     elif df['timestamp'].max() - df['timestamp'].min() < pd.Timedelta(hours=12):
@@ -52,17 +63,5 @@ def testeTemporal(df, expected_rows, expct_freq, expected_last_time):
             f"intervalo total de timestamps é menor que 12 horas, "
             f"encontrado: {df['timestamp'].max() - df['timestamp'].min()}"
         , df)
-
-    # Tratamento para dados bons
-    # Reamostra o DataFrame para Completar o intervalo esperado
-    start = df['timestamp'].min().normalize()
-    end = start + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
-    novo_indice = pd.date_range(start=start, end=end, freq=expct_freq)
-    df = df.set_index('timestamp')
-    df = df.reindex(novo_indice)
-    df = df.rename_axis('timestamp').reset_index()
-
-    # Preenche os valores NaN da coluna 'acronym' com o valor da primeira linha
-    df['acronym'] = df['acronym'].fillna(method='ffill')
 
     return ("", df)
