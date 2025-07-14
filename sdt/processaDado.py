@@ -40,14 +40,14 @@ def processarArquivo(args):
         find_data = duckdb.query(f"""
             SELECT * 
             FROM read_csv_auto('{file_path}',
-            ignore_errors=true, strict_mode=false)
+            ignore_errors=true)
             LIMIT 10
         """).df()
     except Exception as e:
         logger.error(f"Error 1 - Não foi possível ler o arquivo {file_path} \
             durante o processo de encontrar dados.\nDetalhes do erro: {str(e)}")
         return pd.DataFrame()
-
+    
     # Encontra linha de cabeçalho passando por todas as linhas do arquivo
     # A linha de cabeçalho deve conter qualquer uma das palavras-chave
     # 'TIMESTAMP', 'RECORD', 'Id', 'Year', 'Jday', 'Min'. 
@@ -62,7 +62,7 @@ def processarArquivo(args):
     # e coloca como cabeçalho, caso contrário será um cabeçalho vazio com o mesmo numero de colunas
     # do arquivo.
     if header_row is None:
-        header_row = [None] * len(find_data.columns)
+        header_row = find_data.iloc[0].tolist()
     else:
         header_row = find_data.iloc[header_row].tolist()
 
@@ -86,14 +86,15 @@ def processarArquivo(args):
             SELECT * 
             FROM read_csv_auto('{file_path}',
             ignore_errors=true,
-            skip={data_row})
-            LIMIT 10000
+            skip={data_row + 1})
+            LIMIT 50000
         """).df()
     except Exception as e:
         logger.error(f"Error 2 - Não foi possível ler o arquivo {file_path} \
             durante o processo de encontrar dados.\nDetalhes do erro: {str(e)} \
             Os dados encontrados foram: {data}")
         return pd.DataFrame()
+    
     # Adiciona o cabeçalho encontrado ao DataFrame
     try:
         data.columns = header_row
@@ -101,35 +102,44 @@ def processarArquivo(args):
         logger.error(f"Error 3 - Não foi possível adicionar o cabeçalho ao arquivo {file_path} \
             durante o processo de encontrar dados.\nDetalhes do erro: {str(e)}")
         return pd.DataFrame()
-    # Agora, baseado no tipo iremos procurar o verdadeiro nome das colunas
-    main_header = headers[file_type]
+    
+    # Pega o cabeçalho principal baseado no file_type
     try:
         main_header = headers[file_type]
     except KeyError:
         # Registra o erro usando o logger
         logger.error(f"Error 4 - Não foi possível encontrar o cabeçalho para o tipo {file_type} no arquivo {file_path}.")
         return pd.DataFrame()
-    # Cria um dicionário para mapear os cabeçalhos encontrados para os cabeçalhos principais
-    # O dicionário será criado com os valores do cabeçalho principal como chaves
-    normalized_headers = {}
-    for key, values in main_header.items():
-        for value in values:
-            normalized_headers[value.strip().upper()] = key
-    renamed_columns = {}
-    for col in data.columns:
-        if str(col).strip().upper() in normalized_headers:
-            renamed_columns[col] = normalized_headers[str(col).strip().upper()]
     
-    # Renomeia as colunas do DataFrame com os nomes encontrados
-    if renamed_columns:
-        data = data.rename(columns=renamed_columns)
-    
-    # Verifica se o cabeçalho principal tem o mesmo número de colunas que o arquivo
-    # Isso irá deixar os dados já organizados para o formato correto
-    result = pd.DataFrame()
-    for key in main_header.keys():
-        result[key] = data.get(key, pd.NA)
+    # Remove aspas duplas dos nomes das colunas    
+    data.columns = data.columns.str.strip('"')
 
+    # Normaliza os aliases e cria um mapeamento reverso com todos em maiúsculas
+    mapa_colunas = {}
+    for key, aliases in main_header.items():
+        for alias in aliases:
+            mapa_colunas[alias.upper()] = key
+
+    # Também normaliza os nomes de colunas do DataFrame
+    data.columns = [col.upper().strip('"') for col in data.columns]
+
+    # Aplica o mapeamento apenas às colunas que estão no dicionário
+    new_columns = {col: mapa_colunas[col] for col in data.columns if col in mapa_colunas}
+
+    # Renomeia as colunas do DataFrame
+    data.rename(columns=new_columns, inplace=True)
+
+    # Mantém somente as colunas que são chaves do main_header
+    data = data[[col for col in data.columns if col in main_header.keys()]]
+
+    # Adiciona as colunas que não estão no main_header como NaN
+    for col in main_header.keys():
+        if col not in data.columns:
+            data[col] = pd.NA
+
+    # Reordena as colunas do DataFrame para que fiquem na mesma ordem do main_header
+    data = data[main_header.keys()]
+    
     # Pega colunas que não foram renomeadas e separa em um novo DataFrame
     outros_dados = data.drop(columns=main_header.keys(), errors='ignore')
     # Verifica se tem outros dados e cria um log
@@ -137,8 +147,6 @@ def processarArquivo(args):
         # Registra o erro usando o logger
         logger.error(f"WARNING - O arquivo {file_path} contém colunas que não foram processadas: {outros_dados.columns.tolist()}")
 
-    # Converte acronym para maiúsculas
-    # result['acronym'] = estacao.upper()
     # Encontr atipo completo baseado no file_type
     # Caso MD, o tipo é Meteorologico
     # Caso SD, o tipo é Solarimetrico
@@ -173,7 +181,7 @@ def processarArquivo(args):
         summary_df = pd.read_csv(summary_file)
 
     # Prequalifica os dados, separando os bons e ruins, e retorna o resumo
-    good_data, bad_data, summary = prequalificarDado(result, file_type, logger, estacao, output_dir, tipo_completo)
+    good_data, bad_data, problemas = prequalificarDado(data, file_type, logger, estacao, output_dir, tipo_completo)
 
     # Cria um DataFrame para os dados bons
     if len(good_data) > 0:
@@ -233,7 +241,7 @@ def processarArquivo(args):
                 # Pega dados
                 bdata_df = bad_data[bdata]
                 # Pega problemas
-                problema = summary[bdata]
+                problema = problemas[bdata]
                 # print(bdata_df)
                 print(problema)
 
