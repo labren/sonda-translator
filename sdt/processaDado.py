@@ -87,7 +87,6 @@ def processarArquivo(args):
             FROM read_csv_auto('{file_path}',
             ignore_errors=true,
             skip={data_row + 1})
-            LIMIT 50000
         """).df()
     except Exception as e:
         logger.error(f"Error 2 - Não foi possível ler o arquivo {file_path} \
@@ -168,21 +167,12 @@ def processarArquivo(args):
     ##########################################################################
 
     # Cria um DataFrame vazio para o sumário com as colunas necessárias
-    summary_df = pd.DataFrame(columns=['qid', 'estacao', 'tipo', 'tipo_completo' ,
-                                       'data_tratamento', 'status', 'problema', 'data_detecao' , 'path'])
-    
-    # Cria arquivo de sumário se não existir
-    summary_file = pathlib.Path(output_dir).parent / 'sonda-quarentena' / 'summary.csv'
-    if not summary_file.exists():
-        summary_file.parent.mkdir(parents=True, exist_ok=True)
-        summary_df.to_csv(summary_file, index=False)
-    else:
-        # Lê o arquivo de sumário existente
-        summary_df = pd.read_csv(summary_file)
+    summary_df = pd.DataFrame(columns=['qid',  'estacao', 'tipo', 'status', 'code',
+                                       'data_detecao' , 'data_tratamento', 'problema',  'path'])
 
     # Prequalifica os dados, separando os bons e ruins, e retorna o resumo
-    good_data, bad_data, problemas = prequalificarDado(data, file_type, logger, estacao, output_dir, tipo_completo)
-
+    code_data, good_data, bad_data, problemas = prequalificarDado(data, 
+                                                                  file_type, logger, estacao, output_dir, tipo_completo)
     # Cria um DataFrame para os dados bons
     if len(good_data) > 0:
         for gdata in good_data:
@@ -238,91 +228,49 @@ def processarArquivo(args):
         if len(bad_data) > 0:
             # loop para cada DataFrame de dados ruins
             for bdata in range(len(bad_data)):
-                # Pega dados
+                # Pega código do erro
+                code = code_data[bdata]
+                # Pega dados ruins
                 bdata_df = bad_data[bdata]
                 # Pega problemas
                 problema = problemas[bdata]
-                # print(bdata_df)
-                print(problema)
-
-            # print(f"Processando dados bons de {estacao.upper()} do tipo {file_type} de {start} até {end}")
-
-
-        # Concatena os dados bons
-        # good_data = pd.concat(good_data, ignore_index=True)
-
-
-        # Dados bons devem ser reagrupados por mês e separados em arquivos
-        # monthly_good_data = good_data.groupby(good_data['timestamp'].dt.to_period('M'))
-        # # Loop para escrever os dados bons em arquivos separados
-        # for period, group in monthly_good_data:
-        #     # Remove duplicatas no timestamp
-        #     group = group.drop_duplicates(subset='timestamp')
-        #     # 1. Início do mês
-        #     start = group['timestamp'].min().replace(day=1).normalize()
-        #     # 2. Fim do mês (último dia às 23:59:59)
-        #     end = (start + pd.offsets.MonthBegin(1)).replace(day=1) + pd.offsets.MonthEnd(0)
-        #     end = end + pd.Timedelta(hours=23, minutes=59, seconds=59)
-        #     # 3. Criar novo índice mensal com a frequência desejada
-        #     novo_indice = pd.date_range(start=start, end=end, freq=expct_freq)
-        #     # 4. Reindexar e preencher
-        #     group = group.set_index('timestamp')
-        #     group = group.reindex(novo_indice)
-        #     group = group.rename_axis('timestamp').reset_index()
-        #     group['acronym'] = estacao.upper()
-            
-            # print(group)
-            # Verifica se arquivo já existe
-
-
+                # adiciona acronym
+                bdata_df['acronym'] = estacao.upper()
+                # Acronimo deve ser a segunda coluna do dataframe
+                bdata_df.insert(1, 'acronym', bdata_df.pop('acronym'))
+                # Transforma coluna timestamp em string
+                bdata_df['timestamp'] = bdata_df['timestamp'].astype(str)
+                min_stamp = bdata_df['timestamp'].min()
+                max_stamp = bdata_df['timestamp'].max()
+                # Como min_stamp é uma string, remove - e : e / e transforma em YYYYMMDD
+                min_stamp = min_stamp.replace('-', '').replace(':', '').replace('/', '').replace('"', '')
+                max_stamp = max_stamp.replace('-', '').replace(':', '').replace('/', '').replace('"', '')
+                # Pega só primeira parte do timestamp
+                min_stamp = min_stamp.split(' ')[0]
+                max_stamp = max_stamp.split(' ')[0]
+                # Monta o caminho do arquivo de dados ruins
+                file_name = f"{estacao.upper()}_{str(code)}_{min_stamp}_{max_stamp}_{file_type}_quarentena.csv"
+                # O Diretorio de quarentena é o mesmo que output_dir porém em vez de sonda-formatados, é sonda-quarentena
+                quarentena_dir = pathlib.Path(output_dir).parent / 'sonda-quarentena'
+                output_path = os.path.join(quarentena_dir, estacao.upper(), tipo_completo)
+                file_path = os.path.join(output_path, file_name)
+                # Cria o diretório se não existir
+                pathlib.Path(output_path).mkdir(parents=True, exist_ok=True)
+                # Verifica se o arquivo já existe
+                if os.path.exists(file_path):
+                        continue
+                # Salva o DataFrame de dados ruins
+                bdata_df.to_csv(file_path, index=False)
+                # Atualiza o sumário com os dados ruins
+                summary_df = pd.concat([summary_df, pd.DataFrame([{
+                    'estacao': estacao.upper(),
+                    'tipo': file_type,
+                    'status': 'Ruim',
+                    'code': code,
+                    'data_detecao': pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    'data_tratamento': None,
+                    'problema': problema,
+                    'path': file_path
+                }])], ignore_index=True)
+    # Retorna o DataFrame de sumário
     return summary_df
-
-    
-# Adiciona subcabeçalho ao DataFrame
-        # try:
-        #     sub_header = header_sensor[estacao][file_type]
-        # except KeyError:
-        #     # Registra o erro usando o logger
-        #     logger.error(f"Error 6 - Não foi possível encontrar o cabeçalho para a estação {estacao} e tipo {file_type} no arquivo {file_path}, um subcabeçalho vazio será adicionado.")
-        #     sub_header = [''] * len(good_df.columns)
-        # # Adiciona o subcabeçalho ao DataFrame
-        # sub_header = ['', '', '', '', ''] + sub_header
-        # good_df.columns = pd.MultiIndex.from_tuples(list(zip(good_df.columns,sub_header)))
-
-
-    # try:
-    #     # Agrupa por mês e cria um loop para criar os arquivos
-    #     result_groups = result.groupby(result['timestamp'].dt.to_period('M'))
-    #     for period, group in result_groups:
-    #         # Cria o nome do arquivo, o padrão é: SMS_YYYY_MM_SD_formatado.csv
-    #         file_name = f"{estacao.upper()}_{period.year}_{period.month:02d}_{file_type}_formatado.csv"
-    #         # O output_path será sempre output_dir + estacao + tipo_completo + ano
-    #         output_path = os.path.join(output_dir, estacao.upper(), tipo_completo, str(period.year))
-    #         # Verifica se o arquivo já existe, caso exista verifica flag de overwrite, acaso não exista, cria o arquivo, caso exista e a flag overwrite for False, pula a criação do arquivo
-    #         file_path = os.path.join(output_path, file_name)
-    #         # Cria diretorio caso não exista
-    #         pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
-    #         # Verifica se existem linhas duplicadas
-    #         if group.duplicated().any():
-    #             # Registra o erro usando o logger
-    #             # logger.error(f"WARNING - O arquivo {file_path} contém linhas duplicadas.")
-    #             # Remove as linhas duplicadas
-    #             group = group.drop_duplicates()
-    #         # Verifica se o arquivo já existe
-    #         if os.path.exists(file_path):
-    #             if not overwrite:
-    #                 continue
-    #             else:
-    #                 group.to_csv(file_path, index=False)
-    #         else:
-    #             # Cria diretorio caso não exista
-    #             pathlib.Path(output_path).mkdir(parents=True, exist_ok=True)
-    #             # Cria o arquivo
-    #             group.to_csv(file_path, index=False)
-    # except:
-    #     # Registra o erro usando o logger
-    #     logger.error(f"Não foi possível criar o arquivo {file_path} durante o processo de salvar os dados.\nDetalhes do erro: {result}")
-    #     return summary
-        
-    # Retorna o resumo dos dados
-    # return summary

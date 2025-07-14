@@ -32,6 +32,7 @@ def prequalificarDado(df, tipo_dado, logger, estacao, output_dir, tipo_completo)
         return None, None
         
     # Listas para armazenar as datas consideradas boas ou problemáticas
+    code_data = []
     good_data = []
     bad_data = []
     problemas = []
@@ -41,7 +42,7 @@ def prequalificarDado(df, tipo_dado, logger, estacao, output_dir, tipo_completo)
     expected_last_time = (pd.Timestamp("00:00:00") + (expected_rows - 1) * expct_freq).time()
 
     # Remove valores duplicados no dataframe inteiro
-    df = df.drop_duplicates(keep='first').reset_index(drop=True)
+    # df = df.drop_duplicates(keep='first').reset_index(drop=True)
 
     # Encontra todas as linhas que que contem a string "00:00:00" no timestamp
     zero_hour_rows = df['timestamp'].astype(str).str.contains("00:00:00")
@@ -54,13 +55,14 @@ def prequalificarDado(df, tipo_dado, logger, estacao, output_dir, tipo_completo)
         # Separa a linha atual + expected_rows
         group = df.iloc[i:i + expected_rows].copy()
         # Testes temporais
-        problema, data_df = testeTemporal(group, expected_rows, expct_freq, expected_last_time)
+        code, problema, data_df = testeTemporal(group, expected_rows, expct_freq, expected_last_time)
         # Se não houver problemas, adiciona a data na lista de dados bons
-        if len(problema) == 0:
+        if code == 0:
             good_data.append(data_df)
             continue
         # Se houver problemas, adiciona a data na lista de dados problemáticos
+        code_data.append(code)
         bad_data.append(data_df)
         problemas.append(problema)
 
-    return good_data, bad_data, problemas
+    return code_data, good_data, bad_data, problemas

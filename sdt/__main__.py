@@ -211,13 +211,15 @@ if __name__ == "__main__":
             summary_results.append(result)
     pbar.close()
 
-
     # Concatenar todos os resultados em um único DataFrame
     summary_df = pd.concat(summary_results, ignore_index=True)
 
     if summary_df.empty:
         print("Nenhum arquivo foi processado com sucesso.")
         exit(0)
+
+    # Cria qid baseado na linha do DataFrame
+    summary_df['qid'] = range(1, len(summary_df) + 1)
 
     # Cria diretorio de quarentena caso não exista, replace sonda-formatados por quarentena
     quarentena_dir = args.output.replace('sonda-formatados', 'sonda-quarentena')

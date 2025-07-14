@@ -23,15 +23,13 @@ def testeTemporal(df, expected_rows, expct_freq, expected_last_time):
     df = df.dropna(subset=['timestamp'])
     # Critério 1: Se todos os valores de 'timestamp' forem nulos, não é possível realizar o teste
     if df['timestamp'].isnull().all():
-        return (
-            "todos os valores de 'timestamp' são nulos, "
+        return (1, "todos os valores de 'timestamp' são nulos, "
             "não é possível realizar o teste temporal."
         , df_orig)
     # Critério 2: se mais de 50% dos valores de 'timestamp' forem nulos, não é possível realizar o teste
     elif (df['timestamp'].isnull().sum() / len(df)) > 0.5:
         # Retorna uma mensagem de erro e o DataFrame original
-        return (
-            "mais de 50% dos valores de 'timestamp' são nulos, "
+        return (2, "mais de 50% dos valores de 'timestamp' são nulos, "
             "não é possível realizar o teste temporal."
         , df_orig)
     # Critério 3. As DATAS dentro de cada intervalo devem ser iguais (mesmo dia)
@@ -47,7 +45,7 @@ def testeTemporal(df, expected_rows, expct_freq, expected_last_time):
         timestamps = [ts.split(' ')[0] for ts in timestamps.tolist()]
         # Apenas valores unicos
         timestamps = list(set(timestamps))
-        return (
+        return (3,
             f"datas diferentes encontradas, esperado: {df['timestamp'].dt.date.iloc[0]}, "
             f"encontrados: {timestamps}, "
         , df_orig)
@@ -58,16 +56,16 @@ def testeTemporal(df, expected_rows, expct_freq, expected_last_time):
             idxs_nao_monotonicos = df[~df['timestamp'].is_monotonic_increasing].index.tolist()
         except Exception as e:
             idxs_nao_monotonicos = []
-        return (
+        return (4,
             f"progressão de timestamps não é monotônica crescente, "
             f"índices problemáticos: {idxs_nao_monotonicos}"
         , df_orig
         )
-    # Critério 4. Verifica se o numero total de registros dentro de cada intervalo é superior a 12 horas
+    # Critério 5. Verifica se o numero total de registros dentro de cada intervalo é superior a 12 horas
     elif df['timestamp'].max() - df['timestamp'].min() < pd.Timedelta(hours=12):
-        return (
+        return (5,
             f"intervalo total de timestamps é menor que 12 horas, "
             f"encontrado: {df['timestamp'].max() - df['timestamp'].min()}"
         , df)
 
-    return ("", df)
+    return (0, "", df)
