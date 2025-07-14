@@ -154,13 +154,23 @@ def processarArquivo(args):
         tipo_completo = 'Anemometricos'
         expct_freq = pd.Timedelta(minutes=10)
 
-    ############################################################################
-    ### Parte 3 - Pré-Qualificar os dados e salvar o arquivo formatado ###############
-    ############################################################################
+    ##########################################################################
+    ### Parte 3 - Prequalificar os dados e separar os bons e ruins ###########
+    ########## Gerencia os dados bons e ruins, e cria o sumário ##############
+    ##########################################################################
 
     # Cria um DataFrame vazio para o sumário com as colunas necessárias
     summary_df = pd.DataFrame(columns=['qid', 'estacao', 'tipo', 'tipo_completo' ,
                                        'data_tratamento', 'status', 'problema', 'data_detecao' , 'path'])
+    
+    # Cria arquivo de sumário se não existir
+    summary_file = pathlib.Path(output_dir).parent / 'sonda-quarentena' / 'summary.csv'
+    if not summary_file.exists():
+        summary_file.parent.mkdir(parents=True, exist_ok=True)
+        summary_df.to_csv(summary_file, index=False)
+    else:
+        # Lê o arquivo de sumário existente
+        summary_df = pd.read_csv(summary_file)
 
     # Prequalifica os dados, separando os bons e ruins, e retorna o resumo
     good_data, bad_data, summary = prequalificarDado(result, file_type, logger, estacao, output_dir, tipo_completo)
@@ -216,7 +226,16 @@ def processarArquivo(args):
                 gdata = gdata.reset_index()
                 gdata.to_csv(file_path, index=False)
 
-
+        # Dados ruins
+        if len(bad_data) > 0:
+            # loop para cada DataFrame de dados ruins
+            for bdata in range(len(bad_data)):
+                # Pega dados
+                bdata_df = bad_data[bdata]
+                # Pega problemas
+                problema = summary[bdata]
+                # print(bdata_df)
+                print(problema)
 
             # print(f"Processando dados bons de {estacao.upper()} do tipo {file_type} de {start} até {end}")
 
