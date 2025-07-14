@@ -42,7 +42,7 @@ def prequalificarDado(df, tipo_dado, logger, estacao, output_dir, tipo_completo)
     expected_last_time = (pd.Timestamp("00:00:00") + (expected_rows - 1) * expct_freq).time()
 
     # Remove valores duplicados no dataframe inteiro
-    # df = df.drop_duplicates(keep='first').reset_index(drop=True)
+    df = df.drop_duplicates(keep='first').reset_index(drop=True)
 
     # Encontra todas as linhas que que contem a string "00:00:00" no timestamp
     zero_hour_rows = df['timestamp'].astype(str).str.contains("00:00:00")
