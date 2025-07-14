@@ -29,6 +29,7 @@ def processarArquivo(args):
 
     # Check if the file exists
     if not os.path.exists(file_path):
+        print(file_path)
         return pd.DataFrame()
     ############################################################################
     ############ Parte 1 - Encontrar o cabeçalho e a linha de dados ############
@@ -86,6 +87,7 @@ def processarArquivo(args):
             FROM read_csv_auto('{file_path}',
             ignore_errors=true,
             skip={data_row})
+            LIMIT 10000
         """).df()
     except Exception as e:
         logger.error(f"Error 2 - Não foi possível ler o arquivo {file_path} \
@@ -165,28 +167,84 @@ def processarArquivo(args):
 
     # Cria um DataFrame para os dados bons
     if len(good_data) > 0:
-        # Concatena os dados bons
-        good_data = pd.concat(good_data, ignore_index=True)
-        # Dados bons devem ser reagrupados por mês e separados em arquivos
-        monthly_good_data = good_data.groupby(good_data['timestamp'].dt.to_period('M'))
-        # Loop para escrever os dados bons em arquivos separados
-        for period, group in monthly_good_data:
-            # Remove duplicatas no timestamp
-            group = group.drop_duplicates(subset='timestamp')
-            # 1. Início do mês
-            start = group['timestamp'].min().replace(day=1).normalize()
-            # 2. Fim do mês (último dia às 23:59:59)
-            end = (start + pd.offsets.MonthBegin(1)).replace(day=1) + pd.offsets.MonthEnd(0)
-            end = end + pd.Timedelta(hours=23, minutes=59, seconds=59)
-            # 3. Criar novo índice mensal com a frequência desejada
+        for gdata in good_data:
+            # Inicio do mês
+            start = gdata['timestamp'].min().replace(day=1).normalize()
+            # Fim do mês (último dia às 23:59:59)
+            end = (start + pd.offsets.MonthEnd(1)).replace(hour=23, minute=59, second=59)
+            # Preenche o arquivo com o índice mensal
             novo_indice = pd.date_range(start=start, end=end, freq=expct_freq)
-            # 4. Reindexar e preencher
-            group = group.set_index('timestamp')
-            group = group.reindex(novo_indice)
-            group = group.rename_axis('timestamp').reset_index()
-            group['acronym'] = estacao.upper()
+            gdata = gdata.set_index('timestamp')
+            gdata = gdata.reindex(novo_indice)
+            gdata = gdata.rename_axis('timestamp')
+            # Preenche a coluna 'acronym' com o nome da estação
+            gdata['acronym'] = estacao.upper()
+            # Adiciona cabeçalho ao DataFrame
+            try:
+                sub_header = header_sensor[estacao][file_type]
+            except KeyError:
+                # Registra o erro usando o logger
+                logger.error(f"Error 5 - Não foi possível encontrar o cabeçalho para a estação {estacao} e tipo {file_type} no arquivo {file_path}, um subcabeçalho vazio será adicionado.")
+                sub_header = [''] * len(gdata.columns)
+                continue
+            # Adiciona o subcabeçalho ao DataFrame
+            sub_header = ['', '', '', '', ''] + sub_header
+            gdata.columns = pd.MultiIndex.from_tuples(list(zip(gdata.columns, sub_header)))
+            # Cria o caminho do arquivo de dados bons
+            file_name = f"{estacao.upper()}_{start.year}_{start.month:02d}_{file_type}_formatado.csv"
+            output_path = os.path.join(output_dir, estacao.upper(), tipo_completo, str(start.year))
+            file_path = os.path.join(output_path, file_name)
+            # Cria o diretório se não existir
+            pathlib.Path(output_path).mkdir(parents=True, exist_ok=True)
+            # Verifica se o arquivo já existe
+            if os.path.exists(file_path):
+                if not overwrite:
+                    print(f'Arquivo {file_path} já existe e a flag de sobrescrever está desativada. Pulando...')
+                    continue
+                else:
+                    # Abre o arquivo existente
+                    edata = pd.read_csv(file_path)
+                    # Comparada dados edata e gdata e substitui apenas o que for diferente
+                    edata = edata.set_index('timestamp')
+                    # Atualiza dados formatados
+                    gdata.update(edata)
+                    # Reseta o índice e salva o arquivo
+                    gdata = gdata.reset_index()        
+                    gdata.to_csv(file_path, index=False)
+            else:
+                # Reseta o índice e salva o arquivo
+                gdata = gdata.reset_index()
+                gdata.to_csv(file_path, index=False)
+
+
+
+            # print(f"Processando dados bons de {estacao.upper()} do tipo {file_type} de {start} até {end}")
+
+
+        # Concatena os dados bons
+        # good_data = pd.concat(good_data, ignore_index=True)
+
+
+        # Dados bons devem ser reagrupados por mês e separados em arquivos
+        # monthly_good_data = good_data.groupby(good_data['timestamp'].dt.to_period('M'))
+        # # Loop para escrever os dados bons em arquivos separados
+        # for period, group in monthly_good_data:
+        #     # Remove duplicatas no timestamp
+        #     group = group.drop_duplicates(subset='timestamp')
+        #     # 1. Início do mês
+        #     start = group['timestamp'].min().replace(day=1).normalize()
+        #     # 2. Fim do mês (último dia às 23:59:59)
+        #     end = (start + pd.offsets.MonthBegin(1)).replace(day=1) + pd.offsets.MonthEnd(0)
+        #     end = end + pd.Timedelta(hours=23, minutes=59, seconds=59)
+        #     # 3. Criar novo índice mensal com a frequência desejada
+        #     novo_indice = pd.date_range(start=start, end=end, freq=expct_freq)
+        #     # 4. Reindexar e preencher
+        #     group = group.set_index('timestamp')
+        #     group = group.reindex(novo_indice)
+        #     group = group.rename_axis('timestamp').reset_index()
+        #     group['acronym'] = estacao.upper()
             
-            print(group)
+            # print(group)
             # Verifica se arquivo já existe
 
 
