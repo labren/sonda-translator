@@ -218,7 +218,6 @@ def processarArquivo(args):
                     gdata.update(edata)
                     # Reseta o índice e salva o arquivo
                     gdata = gdata.reset_index()     
-                    logger.info(f"Arquivo {file_path} já existe, mas a flag de sobrescrever está ativada. Atualizando o arquivo...")   
                     gdata.to_csv(file_path, index=False)
             else:
                 # Reseta o índice e salva o arquivo
