@@ -207,7 +207,7 @@ def processarArquivo(args):
             # Verifica se o arquivo já existe
             if os.path.exists(file_path):
                 if not overwrite:
-                    print(f'Arquivo {file_path} já existe e a flag de sobrescrever está desativada. Pulando...')
+                    logger.warning(f"Arquivo {file_path} já existe e a flag de sobrescrever está desativada. Pulando...")
                     continue
                 else:
                     # Abre o arquivo existente
@@ -217,7 +217,8 @@ def processarArquivo(args):
                     # Atualiza dados formatados
                     gdata.update(edata)
                     # Reseta o índice e salva o arquivo
-                    gdata = gdata.reset_index()        
+                    gdata = gdata.reset_index()     
+                    logger.info(f"Arquivo {file_path} já existe, mas a flag de sobrescrever está ativada. Atualizando o arquivo...")   
                     gdata.to_csv(file_path, index=False)
             else:
                 # Reseta o índice e salva o arquivo
