@@ -183,6 +183,11 @@ def processarArquivo(args):
             # Preenche o arquivo com o índice mensal
             novo_indice = pd.date_range(start=start, end=end, freq=expct_freq)
             gdata = gdata.set_index('timestamp')
+            
+            # Verificar e tratar timestamps duplicados antes do reindex
+            if gdata.index.duplicated().any():
+                # Opção 1: Manter apenas a primeira ocorrência
+                gdata = gdata[~gdata.index.duplicated(keep='first')]
             gdata = gdata.reindex(novo_indice)
             gdata = gdata.rename_axis('timestamp')
             # Preenche a coluna 'acronym' com o nome da estação
