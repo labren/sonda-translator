@@ -50,10 +50,10 @@ def prequalificarDado(df, tipo_dado, logger, estacao, output_dir, tipo_completo)
     zero_hour_rows = zero_hour_rows[zero_hour_rows].index.tolist()
 
     # Baseado nos indices de horas 00:00:00, separa os dados por data
-    # Faça um loop que vai pegar os indices + expected_rows
-    for i in zero_hour_rows:
-        # Separa a linha atual + expected_rows
-        group = df.iloc[i:i + expected_rows].copy()
+    # Faça um loop que vai pegar os indices + e -1
+    for i in range(1, len(zero_hour_rows)):
+        # Pega os valores entre os indices i e i -1
+        group = df.iloc[zero_hour_rows[i - 1]:zero_hour_rows[i]]
         # Testes temporais
         code, problema, data_df = testeTemporal(group, expected_rows, expct_freq, expected_last_time)
         # Se não houver problemas, adiciona a data na lista de dados bons
