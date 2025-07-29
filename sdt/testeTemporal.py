@@ -1,13 +1,10 @@
 import pandas as pd
 
-def testeTemporal(df, expected_rows, expct_freq, expected_last_time):
+def testeTemporal(df):
     """
     Novo teste temporal para verificar a consistência dos dados temporais.
     Args:
-        df (pd.DataFrame): DataFrame contendo os dados com uma coluna 'timestamp'.
-        expected_rows (int): Número esperado de linhas por dia.
-        expct_freq (pd.Timedelta): Intervalo esperado entre os registros.
-        expected_last_time (datetime.time): Último horário esperado no dia.
+        df (pd.DataFrame): DataFrame contendo os dados temporais.
     Returns:
         str: Mensagem de erro se houver problemas, ou string vazia se tudo estiver correto.
     """

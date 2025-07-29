@@ -37,10 +37,6 @@ def prequalificarDado(df, tipo_dado, logger, estacao, output_dir, tipo_completo)
     bad_data = []
     problemas = []
 
-    # # Número esperado de linhas por dia: 24 horas * 60 minutos = 1440
-    expected_rows = int(pd.Timedelta("1 day") / expct_freq)
-    expected_last_time = (pd.Timestamp("00:00:00") + (expected_rows - 1) * expct_freq).time()
-
     # Remove valores duplicados no dataframe inteiro
     df = df.drop_duplicates(keep='first').reset_index(drop=True)
 
@@ -55,7 +51,7 @@ def prequalificarDado(df, tipo_dado, logger, estacao, output_dir, tipo_completo)
         # Pega os valores entre os indices i e i -1
         group = df.iloc[zero_hour_rows[i - 1]:zero_hour_rows[i]]
         # Testes temporais
-        code, problema, data_df = testeTemporal(group, expected_rows, expct_freq, expected_last_time)
+        code, problema, data_df = testeTemporal(group)
         # Se não houver problemas, adiciona a data na lista de dados bons
         if code == 0:
             good_data.append(data_df)

@@ -49,15 +49,16 @@ def tratar_quarentena(estacao, tipo, quarentena_id, output, overwrite=False, exi
         quarentena_df = quarentena_df_main[quarentena_df_main['qid'].isin(quarentena_id)]
     else:
         quarentena_df = quarentena_df_main.copy()
-        
+                
     max_len = 45
     quarentena_display = quarentena_df.copy()
     quarentena_display['path'] = quarentena_display['path'].apply(lambda x: '...'+ x[-max_len:] if len(x) > max_len else x)
     print(f"Lista de arquivos de quarentena para a estação")
-    print(quarentena_display[['qid', 'estacao', 'tipo', 'status','data_tratamento','problema','path']].to_string(index=False))
+    print(quarentena_display[['qid', 'estacao', 'tipo', 'status','data_tratamento','problema']].to_string(index=False))
     print('-'*50)
     print('')
-    input("Pressione Enter para continuar ou Ctrl+C para cancelar...")
+
+    # input("Pressione Enter para continuar ou Ctrl+C para cancelar...")
     
     # Carrega os cabeçalhos e os sensores a partir de arquivos JSON.
     _, header_sensor = carregaCabecalhos()
@@ -71,12 +72,30 @@ def tratar_quarentena(estacao, tipo, quarentena_id, output, overwrite=False, exi
             print(f"Arquivo não encontrado: {caminho}")
             continue
         print('-'*50)
+        # Inicia testes temporais do arquivo de quarentena
+        if row['tipo'] == 'MD':
+            tipo_completo = 'Meteorologicos'
+        elif row['tipo'] == 'SD':
+            tipo_completo = 'Solarimetricos'
+        elif row['tipo'] == 'WD':
+            tipo_completo = 'Anemometricos'
+        else:
+            print(f"Tipo de dado inválido: {row['tipo']}.")
+            print('-'*50)
+            continue
+
+
         # Abrindo o arquivo de quarentena
         df_q_orig = pd.read_csv(caminho)
         # Seta colunas de timestamp
+        # # Tratamento 1: Verifica se existem características inválidas na coluna 'timestamp'
+        df_q_orig['timestamp'] = df_q_orig['timestamp'].astype(str).str.replace(r'[^0-9:/\-\s]', '', regex=True)
+        # # Tratamento 2: Converte a coluna 'timestamp' para datetime, ignorando erros
         df_q_orig['timestamp'] = pd.to_datetime(df_q_orig['timestamp'], errors='coerce')
+        # # Remove linhas onde 'timestamp' é NaT (Not a Time)
+        df_q_orig = df_q_orig.dropna(subset=['timestamp'])
         # Cria uma copia do arquivo de quarentena para não alterar o original
-        df_q = df_q_orig.copy() 
+        df_q = df_q_orig.copy()
         # Encontra o ano mais comum no arquivo de quarentena baseado no timestamp
         common_year = str(df_q['timestamp'].dt.year.mode()[0])
         # Encontra o mes mais comum no arquivo de quarentena baseado no timestamp com zfill
@@ -84,9 +103,9 @@ def tratar_quarentena(estacao, tipo, quarentena_id, output, overwrite=False, exi
         # Seta arquivo de quarentena apenas para o ano mais comum e mes mais comum
         df_q = df_q[(df_q['timestamp'].dt.year == int(common_year)) & (df_q['timestamp'].dt.month == int(common_month))]
         # Montar nome do arquivo de referencia
-        arqv_ref = output + 'sonda-formatados/' + row['estacao'].upper() + '/' + row['tipo_completo'] + '/'
+        arqv_ref = output + 'sonda-formatados/' + row['estacao'].upper() + '/' + tipo_completo + '/'
         arqv_ref += common_year + '/' + row['estacao'].upper() + '_' + common_year + '_' + common_month + '_' + row['tipo'] + '_formatado.csv'
-        print(f"Tratando arquivo com qid: \t{row['qid']} \tda estacao {row['estacao'].upper()} e tipo {tipo}")
+        print(f"Tratando arquivo com qid: \t{row['qid']} \tda estacao {row['estacao'].upper()} e tipo {tipo_completo}")
         print(f"O status atual do arquivo é: \t{row['status']}")
         print(f"O tipo de problema do arquivo é: \t{row['problema']}")
         print(f"O arquivo de quarentena é: \t{row['path']}...")
@@ -96,30 +115,21 @@ def tratar_quarentena(estacao, tipo, quarentena_id, output, overwrite=False, exi
             print("Arquivo ignorado.")
             print('-'*50)
             continue
-
-        # Inicia testes temporais do arquivo de quarentena
-        if row['tipo'] == 'MD':
-            expected_interval = pd.Timedelta(minutes=10)
-        elif row['tipo'] == 'SD':
-            expected_interval = pd.Timedelta(minutes=1)
-        elif row['tipo'] == 'WD':
-            expected_interval = pd.Timedelta(minutes=10)
-        else:
-            print(f"Tipo de dado inválido: {row['tipo']}.")
-            print('-'*50)
-            continue
-        expected_rows = int(pd.Timedelta("1 day") / expected_interval)
-        expected_last_time = (pd.Timestamp("00:00:00") + (expected_rows - 1) * expected_interval).time()
-        # Verifica se ainda existem problemas no arquivo de quarentena
-        problema = testeTemporal(df_q, expected_rows, expected_interval, expected_last_time)
+        # Realiza o teste temporal no DataFrame de quarentena
+        code, problema, df_q = testeTemporal(df_q)
         if len(problema) > 0:
             print(f"\n[ATENÇÃO!] - Arquivo de quarentena {caminho} \n\t\tainda possui problemas: {problema}")
+            # Encontre a linha com problemas
+            print(df_q.head(5))
             # Pergunta se deseja continuar
-            resposta = input(f"\nDeseja continuar mesmo assim? (s/n) [s]: ") or 's'
-            if resposta.lower() != 's':
+            resposta = input(f"\nDeseja continuar para o próximo? (s/n) [s]: ") or 's'
+            if resposta.lower() == 's':
                 print("Arquivo ignorado.")
                 print('-'*50)
                 continue
+            else:
+                print("Tratamento cancelado.")
+                return
 
         # Cria diretorio de dados tratados caso não exista, ele deve ser o mesmo do arquivo de quarentena mas com 'sonda-tratadps/' ao invés de 'sonda-quarentena/'
         diretorio_tratados = os.path.dirname(caminho).replace('sonda-quarentena', 'sonda-tratados')
