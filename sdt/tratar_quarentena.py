@@ -83,8 +83,6 @@ def tratar_quarentena(estacao, tipo, quarentena_id, output, overwrite=False, exi
             print(f"Tipo de dado inválido: {row['tipo']}.")
             print('-'*50)
             continue
-
-
         # Abrindo o arquivo de quarentena
         df_q_orig = pd.read_csv(caminho)
         # Seta colunas de timestamp
@@ -201,9 +199,13 @@ def tratar_quarentena(estacao, tipo, quarentena_id, output, overwrite=False, exi
             print(f"Arquivo de quarentena {caminho} é igual ao arquivo de referencia {arqv_ref}")
             continue
 
-        # Encontra os dados que estão no arquivo de quarentena e não estão no arquivo de referencia
-        df_q = df_q[~df_q['timestamp'].isin(df_ref['timestamp'])]
-
+        # Check se é para sobrescrever o arquivo de referencia
+        if not overwrite:
+            # Verifica se o arquivo de quarentena já está no arquivo de referencia
+            if df_q['timestamp'].isin(df_ref['timestamp']).all():
+                print(f"Arquivo de quarentena {caminho} já está no arquivo de referencia {arqv_ref}")
+                continue
+    
         # Seta colunas de timestamp como index para comparação
         df_q.set_index('timestamp', inplace=True)
         df_ref.set_index('timestamp', inplace=True)
