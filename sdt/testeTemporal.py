@@ -1,6 +1,6 @@
 import pandas as pd
 
-def testeTemporal(df):
+def testeTemporal(df, estacao, logger):
     """
     Novo teste temporal para verificar a consistência dos dados temporais.
     Args:
@@ -65,5 +65,21 @@ def testeTemporal(df):
             f"intervalo total de timestamps é menor que 12 horas, "
             f"encontrado: {df['timestamp'].max() - df['timestamp'].min()}"
         , df)
-
+    # Criterio 6. Verificar dia ano, diajuliano, e minuto contem informações vazias em alguma dessas colunas
+    elif df[['year', 'day', 'min']].isnull().any(axis=None):
+        intervalo = df['timestamp'].max() - df['timestamp'].min()
+        # Este error não inválida o teste, mas é importante registrar
+        # que os dados não estão completos, e devem ser preenchidos
+        # com os valores corretos
+        logger.error("WARNING! - Estacao %s: Dados com intervalo de %s, "
+                     "mas colunas 'year', 'day' ou 'min' contem valores nulos, "
+                     "verifique os dados.",
+                     estacao, intervalo)
+        # Preenche os valores nulos de year, de acordo com o intervalo
+        df['year'] = df['timestamp'].dt.year.fillna(method='ffill')
+        # Preenche os valores de day com dia juliano
+        df['day'] = df['timestamp'].dt.dayofyear.fillna(method='ffill')
+        # Preenche os valores de min com o minuto acumulado do dia
+        df['min'] = df['timestamp'].dt.hour * 60 + df['timestamp'].dt.minute
+ 
     return (0, "", df)

@@ -171,8 +171,7 @@ def processarArquivo(args):
                                        'data_detecao' , 'data_tratamento', 'problema',  'path'])
 
     # Prequalifica os dados, separando os bons e ruins, e retorna o resumo
-    code_data, good_data, bad_data, problemas = prequalificarDado(data, 
-                                                                  file_type, logger, estacao, output_dir, tipo_completo)
+    code_data, good_data, bad_data, problemas = prequalificarDado(data, estacao, logger)
     # Cria um DataFrame para os dados bons
     if len(good_data) > 0:
         for gdata in good_data:

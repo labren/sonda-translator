@@ -2,7 +2,7 @@ import pandas as pd
 import pathlib
 from testeTemporal import testeTemporal
 
-def prequalificarDado(df, tipo_dado, logger, estacao, output_dir, tipo_completo):
+def prequalificarDado(df, estacao, logger):
 
     """
     Função para qualificar os dados de um DataFrame.
@@ -20,17 +20,6 @@ def prequalificarDado(df, tipo_dado, logger, estacao, output_dir, tipo_completo)
     #   - tolerancia: Tolerância percentual para a comparação do intervalo esperado (default: 10%)
     #   - mad_factor: Fator multiplicativo para o limiar baseado no MAD (default: 3)
 
-    if tipo_dado == 'MD':
-        expct_freq = pd.Timedelta(minutes=10)
-    elif tipo_dado == 'SD':
-        expct_freq = pd.Timedelta(minutes=1)
-    elif tipo_dado == 'WD':
-        expct_freq = pd.Timedelta(minutes=10)
-    else:
-        logger.error(f"Error 7 - Error no prequalificaDado: \
-            Tipo de dado inválido: {tipo_dado}.")
-        return None, None
-        
     # Listas para armazenar as datas consideradas boas ou problemáticas
     code_data = []
     good_data = []
@@ -51,7 +40,7 @@ def prequalificarDado(df, tipo_dado, logger, estacao, output_dir, tipo_completo)
         # Pega os valores entre os indices i e i -1
         group = df.iloc[zero_hour_rows[i - 1]:zero_hour_rows[i]]
         # Testes temporais
-        code, problema, data_df = testeTemporal(group)
+        code, problema, data_df = testeTemporal(group, estacao, logger)
         # Se não houver problemas, adiciona a data na lista de dados bons
         if code == 0:
             good_data.append(data_df)
