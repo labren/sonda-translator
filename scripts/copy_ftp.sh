@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# Configuração de conexão
 SRC="USUARIOn@IP:/mnt/ftp/restricted/coleta/"
 DEST="../ftp/restricted/coleta/"
 MAX_RETRIES=10
@@ -28,6 +29,8 @@ sync_files() {
             --exclude='*.nc' \
             --prune-empty-dirs \
             --inplace --delete-delay \
+            --size-only \
+            --itemize-changes \
             --info=progress2 "$SRC" "$DEST"
 
         if [ $? -eq 0 ]; then

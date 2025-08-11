@@ -13,6 +13,7 @@ from processaDado import processarArquivo
 from scan_ftp import main as scan_ftp_main
 from tratar_quarentena import tratar_quarentena
 from gerar_base import gerarBase
+from gerar_web import gerar_web
 
 # Copyright (c) Helvecio Neto - 2025 - helvecioblneto@gmail.com
 # Todos os direitos reservados.
@@ -71,7 +72,9 @@ if __name__ == "__main__":
     parser.add_argument('-quarentena_tratado', type=lambda x: bool(strtobool(x)), default=False,
                         help='Trata arquivos em quarentena que já foram tratados')
     parser.add_argument('-gerar_base', action='store_true',
-                        help='Gera base de dados dos arquivos formatados')
+                        help='Gera base de dados dos arquivos formatados em formato .parquet')
+    parser.add_argument('-gerar_web', action='store_true',
+                        help='Gerar dados de publicação web a partir da base de dados')
     args = parser.parse_args()
     
     # Get the directory where the script is located
@@ -150,7 +153,7 @@ if __name__ == "__main__":
         exit()
 
     # Exibe os dados filtrados se não for solicitado formatação
-    if not args.formatar and not args.gerar_base:
+    if not args.formatar and not args.gerar_base and not args.gerar_web:
         # Limita o número de caracteres da coluna 'caminho' para exibição
         df_to_show = dat_files_df[['id', 'estacao', 'tipo',  'ano', 'is_historico', 'caminho']].copy()
         max_caminho_len = 120
@@ -171,7 +174,11 @@ if __name__ == "__main__":
         # Chama funcao gerar base
         gerarBase(args.output, args.tipo, headers, args.overwrite)
         exit()
-    
+
+    if args.gerar_web:
+        gerar_web(args.output, args.tipo)
+        exit()
+
     # Pegue os dados que serão processados
     dat_files_to_process = dat_files_df['caminho'].tolist()
     # Pegue os tipos de dados que serão processados
