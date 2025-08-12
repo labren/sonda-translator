@@ -29,7 +29,6 @@ def processarArquivo(args):
 
     # Check if the file exists
     if not os.path.exists(file_path):
-        print(file_path)
         return pd.DataFrame()
     ############################################################################
     ############ Parte 1 - Encontrar o cabeçalho e a linha de dados ############
@@ -61,10 +60,14 @@ def processarArquivo(args):
     # Se a linha de cabeçalho não for encontrada, pega os valores da primeira linha
     # e coloca como cabeçalho, caso contrário será um cabeçalho vazio com o mesmo numero de colunas
     # do arquivo.
-    if header_row is None:
-        header_row = find_data.iloc[0].tolist()
-    else:
-        header_row = find_data.iloc[header_row].tolist()
+    try:
+        if header_row is None:
+            header_row = find_data.iloc[0].tolist()
+        else:
+            header_row = find_data.iloc[header_row].tolist()
+    except:
+        logger.error(f"Error 2 - Não foi possível encontrar o cabeçalho no arquivo {file_path}.")
+        return pd.DataFrame()
 
     # Encontra a linha de dados. Nesta linha, a maioria dos valores deve ser numérico.
     # Caso contrário, continue procurando. E se não houver linha de dados, retorne None.
