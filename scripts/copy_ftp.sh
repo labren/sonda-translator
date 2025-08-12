@@ -30,7 +30,6 @@ sync_files() {
             --prune-empty-dirs \
             --inplace --delete-delay \
             --size-only \
-            --itemize-changes \
             --info=progress2 "$SRC" "$DEST"
 
         if [ $? -eq 0 ]; then

@@ -91,9 +91,17 @@ def gerar_web(output_path='output/sonda-banco-dados', tipo='SD'):
         
         # Debug: comparar as duas abordagens
         years_from_column = set(df['year'].dropna().unique())
+
+        # Set timestamp as index
         df['timestamp'] = pd.to_datetime(df['timestamp'])
+        # Fill when is empty
+        df['year'] = df['timestamp'].dt.year.fillna(method='ffill')
+        df['day'] = df['timestamp'].dt.dayofyear.fillna(method='ffill')
+        df['min'] = df['timestamp'].dt.hour * 60 + df['timestamp'].dt.minute
+        df['min'] = df['min'].astype(int)
+        # Get years from timestamp
         years_from_timestamp = set(df['timestamp'].dt.year.dropna().unique())
-        
+        # Verifica se os anos são diferentes
         if years_from_column != years_from_timestamp:
             logging.warning(f"Estação {acronym}: Anos diferentes entre coluna year ({years_from_column}) e timestamp ({years_from_timestamp})")
         

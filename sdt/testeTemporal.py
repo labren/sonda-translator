@@ -75,11 +75,4 @@ def testeTemporal(df, estacao, logger):
                      "mas colunas 'year', 'day' ou 'min' contem valores nulos, "
                      "verifique os dados.",
                      estacao, intervalo)
-        # Preenche os valores nulos de year, de acordo com o intervalo
-        df['year'] = df['timestamp'].dt.year.fillna(method='ffill')
-        # Preenche os valores de day com dia juliano
-        df['day'] = df['timestamp'].dt.dayofyear.fillna(method='ffill')
-        # Preenche os valores de min com o minuto acumulado do dia
-        df['min'] = df['timestamp'].dt.hour * 60 + df['timestamp'].dt.minute
- 
     return (0, "", df)

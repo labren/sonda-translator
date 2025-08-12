@@ -181,6 +181,14 @@ def processarArquivo(args):
             end = (start + pd.offsets.MonthEnd(1)).replace(hour=23, minute=59, second=59)
             # Preenche o arquivo com o índice mensal
             novo_indice = pd.date_range(start=start, end=end, freq=expct_freq)
+
+            # Preenche a coluna 'acronym' com o nome da estação e adiciona colunas de ano, dia e minuto
+            gdata['acronym'] = estacao.upper()
+            gdata['year'] = gdata['timestamp'].dt.year.fillna(method='ffill')
+            gdata['day'] = gdata['timestamp'].dt.dayofyear.fillna(method='ffill')
+            gdata['min'] = gdata['timestamp'].dt.hour * 60 + gdata['timestamp'].dt.minute
+            gdata['min'] = gdata['min'].astype(int)
+            # Seta
             gdata = gdata.set_index('timestamp')
             
             # Verificar e tratar timestamps duplicados antes do reindex
@@ -189,8 +197,7 @@ def processarArquivo(args):
                 gdata = gdata[~gdata.index.duplicated(keep='first')]
             gdata = gdata.reindex(novo_indice)
             gdata = gdata.rename_axis('timestamp')
-            # Preenche a coluna 'acronym' com o nome da estação
-            gdata['acronym'] = estacao.upper()
+
             # Adiciona cabeçalho ao DataFrame
             try:
                 sub_header = header_sensor[estacao][file_type]
@@ -208,6 +215,7 @@ def processarArquivo(args):
             file_path = os.path.join(output_path, file_name)
             # Cria o diretório se não existir
             pathlib.Path(output_path).mkdir(parents=True, exist_ok=True)
+
             # Verifica se o arquivo já existe
             if os.path.exists(file_path):
                 if not overwrite:
@@ -221,11 +229,21 @@ def processarArquivo(args):
                     # Atualiza dados formatados
                     gdata.update(edata)
                     # Reseta o índice e salva o arquivo
-                    gdata = gdata.reset_index()     
+                    gdata = gdata.reset_index()
+                    gdata['acronym'] = estacao.upper()
+                    gdata['year'] = gdata['timestamp'].dt.year.fillna(method='ffill')
+                    gdata['day'] = gdata['timestamp'].dt.dayofyear.fillna(method='ffill')
+                    gdata['min'] = gdata['timestamp'].dt.hour * 60 + gdata['timestamp'].dt.minute
+                    gdata['min'] = gdata['min'].astype(int)
                     gdata.to_csv(file_path, index=False)
             else:
                 # Reseta o índice e salva o arquivo
                 gdata = gdata.reset_index()
+                gdata['acronym'] = estacao.upper()
+                gdata['year'] = gdata['timestamp'].dt.year.fillna(method='ffill')
+                gdata['day'] = gdata['timestamp'].dt.dayofyear.fillna(method='ffill')
+                gdata['min'] = gdata['timestamp'].dt.hour * 60 + gdata['timestamp'].dt.minute
+                gdata['min'] = gdata['min'].astype(int)
                 gdata.to_csv(file_path, index=False)
 
         # Dados ruins
@@ -240,6 +258,10 @@ def processarArquivo(args):
                 problema = problemas[bdata]
                 # adiciona acronym
                 bdata_df['acronym'] = estacao.upper()
+                bdata_df['year'] = bdata_df['timestamp'].dt.year.fillna(method='ffill')
+                bdata_df['day'] = bdata_df['timestamp'].dt.dayofyear.fillna(method='ffill')
+                bdata_df['min'] = bdata_df['timestamp'].dt.hour * 60 + bdata_df['timestamp'].dt.minute
+                bdata_df['min'] = bdata_df['min'].astype(int)
                 # Acronimo deve ser a segunda coluna do dataframe
                 bdata_df.insert(1, 'acronym', bdata_df.pop('acronym'))
                 # Transforma coluna timestamp em string
