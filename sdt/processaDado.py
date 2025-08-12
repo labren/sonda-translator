@@ -261,10 +261,6 @@ def processarArquivo(args):
                 problema = problemas[bdata]
                 # adiciona acronym
                 bdata_df['acronym'] = estacao.upper()
-                bdata_df['year'] = bdata_df['timestamp'].dt.year.fillna(method='ffill')
-                bdata_df['day'] = bdata_df['timestamp'].dt.dayofyear.fillna(method='ffill')
-                bdata_df['min'] = bdata_df['timestamp'].dt.hour * 60 + bdata_df['timestamp'].dt.minute
-                bdata_df['min'] = bdata_df['min'].astype(int)
                 # Acronimo deve ser a segunda coluna do dataframe
                 bdata_df.insert(1, 'acronym', bdata_df.pop('acronym'))
                 # Transforma coluna timestamp em string
