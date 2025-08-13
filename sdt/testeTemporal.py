@@ -11,13 +11,6 @@ def testeTemporal(df, estacao, logger):
 
     # Salva o DataFrame original para referência
     df_orig = df.copy()
-
-    # # Tratamento 1: Verifica se existem características inválidas na coluna 'timestamp'
-    df['timestamp'] = df['timestamp'].astype(str).str.replace(r'[^0-9:/\-\s]', '', regex=True)
-    # # Tratamento 2: Converte a coluna 'timestamp' para datetime, ignorando erros
-    df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
-    # # Remove linhas onde 'timestamp' é NaT (Not a Time)
-    df = df.dropna(subset=['timestamp'])
     
     # Critério 1: Se todos os valores de 'timestamp' forem nulos, não é possível realizar o teste
     if df['timestamp'].isnull().all():

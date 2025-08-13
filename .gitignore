@@ -7,6 +7,7 @@
 *.parquet
 *.wal
 *.zip
+*.txt
 ftp/
 error_log.txt
 
