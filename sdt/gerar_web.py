@@ -8,7 +8,7 @@ def gerar_web(output_path='output/sonda-banco-dados', tipo='SD'):
     # Replace any sonda-formatados para sonda-banco-dados em output_path
     output_path = output_path.replace('sonda-formatados', 'sonda-banco-dados')
     output_path = output_path.replace('sonda-quarentena', 'sonda-banco-dados')
-    output_web = output_path.replace('sonda-banco-dados', 'output-web')
+    output_web = output_path.replace('sonda-banco-dados', 'sonda-web')
     # Verifica se arquivo já existe
     if tipo == 'SD':
         output_file = os.path.join(output_path, f'Solarimetrica.parquet')
