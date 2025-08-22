@@ -40,13 +40,13 @@ def prequalificarDado(df, estacao, logger):
     # Encontra dias unicos presentes nos dados
     df['dia_original'] = df['timestamp'].dt.date
     # Cria uma coluna auxiliar para identificar blocos de dias únicos com des
-    df['bloco'] = (df['dia_original'] != df['dia_original'].shift()).cumsum()
+    #df['bloco'] = (df['dia_original'] != df['dia_original'].shift()).cumsum()
     # Loop por cada bloco de dias únicos
-    for _, dados in df.groupby('bloco'):
+    for _, dados in df.groupby('dia_original'):
         # Pega os dados do bloco
         dados = dados.reset_index(drop=True)
         # Remove as colunas dia_original e bloco
-        dados = dados.drop(columns=['dia_original', 'bloco'])
+        dados = dados.drop(columns=['dia_original'])
         # Testes temporais
         code, problema, data_df = testeTemporal(dados, estacao, logger)
         # Se não houver problemas, adiciona a data na lista de dados bons
