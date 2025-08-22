@@ -63,7 +63,7 @@ if __name__ == "__main__":
                         help='Ativa a formatação especial para os arquivos de saída')
     parser.add_argument('-overwrite', action='store_true',
                         help='Sobrescreve os arquivos de saída caso já existam')
-    parser.add_argument('-ftp_dir', type=str, default='/media/helvecioneto/Barracuda/',
+    parser.add_argument('-ftp_dir', type=str, default='/media/helvecioneto/Barracuda/ftp/restricted/coleta',
                         help='Diretório base onde estão localizados os arquivos a serem processados')
     parser.add_argument('-scan_ftp', action='store_true',
                         help='Escaneia o diretório FTP para encontrar arquivos .dat')
@@ -77,6 +77,10 @@ if __name__ == "__main__":
                         help='Gerar dados de publicação web a partir da base de dados')
     args = parser.parse_args()
     
+    # If scan_ftp is specified, scan the FTP directory for .dat files
+    if args.scan_ftp:
+        scan_ftp_main(args.ftp_dir)
+
     # Get the directory where the script is located
     script_dir = os.path.dirname(os.path.abspath(__file__))
     dat_file_path = os.path.join(script_dir, 'json', 'arquivos_ftp.json')
@@ -91,7 +95,7 @@ if __name__ == "__main__":
                 # Update the 'caminho' column with the FTP directory
                 dat_files_df['caminho'] = dat_files_df['caminho'].apply(lambda x: os.path.join(args.ftp_dir, x))
     else:
-        print(f"Error: File '{dat_file_path}' not found.")
+        print(f"O arquivo '{dat_file_path}' não foi encontrado, gere ele com o comando 'python -m sdt --scan_ftp'")
         exit(1)
 
     # Print de boas vindas falando os parametros que foram passados
@@ -140,10 +144,6 @@ if __name__ == "__main__":
     # Filter by ID if specified
     if args.id:
         dat_files_df = dat_files_df[dat_files_df['id'] == args.id]
-
-    # If scan_ftp is specified, scan the FTP directory for .dat files
-    if args.scan_ftp:
-        scan_ftp_main(args.ftp_dir)
 
     # If no files are found after filtering, exit
     if args.quarentena or args.quarentena == []:

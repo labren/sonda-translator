@@ -16,17 +16,44 @@ PADRAO_ANO_CAMINHO = re.compile(r'/(\d{4})(?:/|$)')
 PADRAO_ANO_ARQUIVO_1 = re.compile(r'_(\d{4})_')
 PADRAO_ANO_ARQUIVO_2 = re.compile(r'(\d{2})(\d{2})')
 
+def debug_buscar_arquivo_especifico(diretorio_base, nome_arquivo_procurado):
+    """Função de debug para encontrar um arquivo específico"""
+    print(f"🔍 DEBUG: Procurando especificamente pelo arquivo '{nome_arquivo_procurado}' em '{diretorio_base}'")
+    
+    if not os.path.exists(diretorio_base):
+        print(f"❌ Diretório base '{diretorio_base}' não existe!")
+        return None
+    
+    for raiz, dirs, arquivos in os.walk(diretorio_base):
+        for arquivo in arquivos:
+            if nome_arquivo_procurado.lower() in arquivo.lower():
+                caminho_completo = os.path.join(raiz, arquivo)
+                print(f"✓ ENCONTRADO: {caminho_completo}")
+                
+                # Analisar o arquivo encontrado
+                resultado = processar_arquivo(caminho_completo)
+                print(f"  Estação: {resultado['estacao']}")
+                print(f"  Tipo: {resultado['tipo']}")
+                print(f"  Ano: {resultado['date']}")
+                print(f"  Histórico: {resultado['is_historico']}")
+                
+                return caminho_completo
+    
+    print(f"❌ Arquivo '{nome_arquivo_procurado}' não encontrado em '{diretorio_base}'")
+    return None
+
 def determinar_tipo(nome_arquivo):
     """Determina o tipo de dado baseado no padrão do nome do arquivo"""
     nome_arquivo = nome_arquivo.upper()
     
-    if '_AMB.DAT' in nome_arquivo or '_MD.DAT' in nome_arquivo:
+    # Verificar padrões mais flexíveis para capturar arquivos como SPK_2025_001_230_AMB_01.dat
+    if '_AMB_' in nome_arquivo or '_MD' in nome_arquivo:
         return 'MD'
-    elif '_RAD_01.DAT' in nome_arquivo or '_SD.DAT' in nome_arquivo:
+    elif '_RAD_' in nome_arquivo or '_SD' in nome_arquivo:
         return 'SD'
-    elif '_TD.DAT' in nome_arquivo:
+    elif '_TD' in nome_arquivo:
         return 'TD'
-    elif '_ANE.DAT' in nome_arquivo or '_10.DAT' in nome_arquivo or '_25.DAT' in nome_arquivo or '_50.DAT' in nome_arquivo:
+    elif '_ANE' in nome_arquivo or '_10' in nome_arquivo or '_25' in nome_arquivo or '_50' in nome_arquivo:
         return 'WD'
     else:
         return 'INDEFINIDO'
@@ -114,7 +141,8 @@ def buscar_arquivos_estacao(args):
     # Buscar arquivos em toda a árvore dessa estação
     for raiz, _, arquivos in os.walk(diretorio_estacao):
         for arquivo in arquivos:
-            if arquivo.lower().endswith(extensao):
+            # Buscar tanto .dat quanto .DAT (case insensitive)
+            if arquivo.lower().endswith(extensao.lower()):
                 caminhos_arquivos.append(os.path.join(raiz, arquivo))
     
     # Atualizar a barra de progresso de maneira thread-safe
@@ -142,7 +170,7 @@ def encontrar_arquivos_dat(diretorio_base, extensao=".dat"):
     
     # Lock para atualizações thread-safe da barra de progresso
     lock = threading.Lock()
-    
+
     # Inicializar barra de progresso como atributo estático da função
     buscar_arquivos_estacao.pbar = tqdm(total=len(estacoes), desc="Escaneando estações", unit="estação")
     
@@ -252,7 +280,7 @@ def listar_arquivos_dat(diretorio_base="../ftp/restricted/coleta/", extensao=".d
     
     return resultados
 
-def salvar_json(dados, nome_arquivo="json/arquivos_ftp.json"):
+def salvar_json(dados, nome_arquivo="sdt/json/arquivos_ftp.json"):
     """Salva os dados em um arquivo JSON"""
     print(f"Salvando {len(dados)} registros em {nome_arquivo}...")
     
@@ -263,7 +291,7 @@ def salvar_json(dados, nome_arquivo="json/arquivos_ftp.json"):
         json.dump(dados, f, indent=2)
     print(f"✓ Dados salvos com sucesso em {nome_arquivo}")
 
-def salvar_estatisticas(total_arquivos, estacoes, tipos, datas, historicos, tempo_execucao, nome_arquivo="estatisticas.txt"):
+def salvar_estatisticas(total_arquivos, estacoes, tipos, datas, historicos, tempo_execucao, nome_arquivo="estatisticas_arquivos_ftp.txt"):
     """Salva as estatísticas em um arquivo de texto"""
     print(f"Salvando estatísticas em {nome_arquivo}...")
     
@@ -296,16 +324,33 @@ def salvar_estatisticas(total_arquivos, estacoes, tipos, datas, historicos, temp
     
     print(f"✓ Estatísticas salvas com sucesso em {nome_arquivo}")
 
-def main(diretorio_base="../ftp/restricted/coleta/"):
+def main(diretorio_base="/media/helvecioneto/Barracuda/ftp/restricted/coleta/"):
     try:
         inicio_total = time.time()
+        
+        # Verificar se o diretório existe
+        if not os.path.exists(diretorio_base):
+            print(f"❌ Erro: Diretório '{diretorio_base}' não encontrado!")
+            print("Tentando diretório alternativo...")
+            diretorio_alternativo = "../ftp/restricted/coleta/"
+            if os.path.exists(diretorio_alternativo):
+                diretorio_base = diretorio_alternativo
+                print(f"✓ Usando diretório alternativo: {diretorio_base}")
+            else:
+                print("❌ Nenhum diretório FTP encontrado!")
+                return
+        
+        print(f"📁 Usando diretório base: {diretorio_base}")
+        
+        # DEBUG: Procurar especificamente pelo arquivo mencionado
+        debug_buscar_arquivo_especifico(diretorio_base, "SPK_2025_001_230_AMB_01.dat")
         
         # Listar arquivos .dat e categorizar
         arquivos_dat = listar_arquivos_dat(diretorio_base)
         
         # Verificar se encontrou arquivos
         if not arquivos_dat:
-            print("Nenhum arquivo .dat encontrado no diretório ftp/restricted/coleta/")
+            print("Nenhum arquivo .dat encontrado no diretório especificado")
             return
         
         # Salvar no arquivo JSON
@@ -374,5 +419,5 @@ def main(diretorio_base="../ftp/restricted/coleta/"):
         print(f"❌ Erro ao processar arquivos: {e}")
         print(traceback.format_exc())
 
-if __name__ == "__main__":
-    main(diretorio_base="../ftp/restricted/coleta/")
+# if __name__ == "__main__":
+#     main(diretorio_base="/media/helvecioneto/Barracuda/ftp/restricted/coleta/")

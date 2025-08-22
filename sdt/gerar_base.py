@@ -56,23 +56,24 @@ def gerarBase(output_dir, tipo, cabecalhos, overwrite=False):
         # Valores a substituir por NULL
         valores_a_nular = [3333.0, -5555.0]
         valores_str = ', '.join(str(v) for v in valores_a_nular)
-
         # Expressões: manter as 4 primeiras colunas como estão, aplicar lógica nas restantes
         exprs = []
-
         for i, col in enumerate(colunas):
             if i < 4:
                 # Primeiras 4 colunas: mantém sem alteração
                 exprs.append(col)
             else:
                 # A partir da 5ª coluna: cast para DOUBLE + nulos para valores indesejados
+                # exprs.append(f"""
+                # CASE 
+                #     WHEN try_cast({col} AS DOUBLE) IN ({valores_str}) THEN NULL
+                #     ELSE try_cast({col} AS DOUBLE)
+                # END AS {col}
+                # """)
                 exprs.append(f"""
-                CASE 
-                    WHEN try_cast({col} AS DOUBLE) IN ({valores_str}) THEN NULL
-                    ELSE try_cast({col} AS DOUBLE)
-                END AS {col}
+                             try_cast({col} AS DOUBLE) AS {col}
                 """)
-
+        
         # Executa a query
         con.execute(f"""
             CREATE OR REPLACE TABLE {nome_base} AS
@@ -86,6 +87,7 @@ def gerarBase(output_dir, tipo, cabecalhos, overwrite=False):
             COPY (
                 SELECT DISTINCT *
                 FROM {nome_base}
+                ORDER BY timestamp, acronym
             )
             TO '{output_base + tipo_completo}' (FORMAT 'parquet');
         """)

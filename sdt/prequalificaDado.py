@@ -38,15 +38,13 @@ def prequalificarDado(df, estacao, logger):
 
     ###### PARSING TEMPORAL POR blocos de dia unico #####
     # Encontra dias unicos presentes nos dados
-    df['dia_original'] = df['timestamp'].dt.date
-    # Cria uma coluna auxiliar para identificar blocos de dias únicos com des
-    #df['bloco'] = (df['dia_original'] != df['dia_original'].shift()).cumsum()
+    df['dia_unico'] = df['timestamp'].dt.date
     # Loop por cada bloco de dias únicos
-    for _, dados in df.groupby('dia_original'):
+    for _, dados in df.groupby('dia_unico'):
         # Pega os dados do bloco
         dados = dados.reset_index(drop=True)
         # Remove as colunas dia_original e bloco
-        dados = dados.drop(columns=['dia_original'])
+        dados = dados.drop(columns=['dia_unico'])
         # Testes temporais
         code, problema, data_df = testeTemporal(dados, estacao, logger)
         # Se não houver problemas, adiciona a data na lista de dados bons
@@ -57,26 +55,5 @@ def prequalificarDado(df, estacao, logger):
         code_data.append(code)
         bad_data.append(data_df)
         problemas.append(problema)
-
-    # ###### PARSING TEMPORAL POR HORÁRIO 00:00:00 #####
-    # zero_hour_rows = df['timestamp'].astype(str).str.contains("00:00:00")
-    # # Retorna apenas os indices verdadeiros
-    # zero_hour_rows = zero_hour_rows[zero_hour_rows].index.tolist()
-
-    # # Baseado nos indices de horas 00:00:00, separa os dados por data
-    # # Faça um loop que vai pegar os indices + e -1
-    # for i in range(1, len(zero_hour_rows)):
-    #     # Pega os valores entre os indices i e i -1
-    #     group = df.iloc[zero_hour_rows[i - 1]:zero_hour_rows[i]]
-    #     # Testes temporais
-    #     code, problema, data_df = testeTemporal(group, estacao, logger)
-    #     # Se não houver problemas, adiciona a data na lista de dados bons
-    #     if code == 0:
-    #         good_data.append(data_df)
-    #         continue
-    #     # Se houver problemas, adiciona a data na lista de dados problemáticos
-    #     code_data.append(code)
-    #     bad_data.append(data_df)
-    #     problemas.append(problema)
 
     return code_data, good_data, bad_data, problemas

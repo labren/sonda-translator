@@ -42,23 +42,30 @@ def testeTemporal(df, estacao, logger):
         , df_orig)
     ## Critério 4. A progressão de cada dia deve ser monotônica e crescente
     elif not df['timestamp'].is_monotonic_increasing:
-        # Encontre os indices onde a progressão não é monotônica
-        try:
-            idxs_nao_monotonicos = df[~df['timestamp'].is_monotonic_increasing].index.tolist()
-        except Exception as e:
-            idxs_nao_monotonicos = []
+        # Método simples: compara cada timestamp com o próximo
+        problemas = []
+        for i in range(len(df) - 1):
+            if pd.notna(df['timestamp'].iloc[i]) and pd.notna(df['timestamp'].iloc[i + 1]):
+                if df['timestamp'].iloc[i] >= df['timestamp'].iloc[i + 1]:
+                    problemas.append(df['timestamp'].iloc[i + 1])
         return (4,
             f"progressão de timestamps não é monotônica crescente, "
-            f"índices problemáticos: {idxs_nao_monotonicos}"
+            f"índices problemáticos: {problemas[:10]}"  # mostra apenas os primeiros 10
         , df_orig
         )
     # Critério 5. Verifica se o numero total de registros dentro de cada intervalo é superior a 12 horas
-    elif df['timestamp'].max() - df['timestamp'].min() < pd.Timedelta(hours=12):
+    elif df['timestamp'].max() - df['timestamp'].min() < pd.Timedelta(hours=8):
         return (5,
-            f"intervalo total de timestamps é menor que 12 horas, "
+            f"intervalo total de timestamps é menor que 8 horas, "
             f"encontrado: {df['timestamp'].max() - df['timestamp'].min()}"
         , df)
-    # Criterio 6. Verificar dia ano, diajuliano, e minuto contem informações vazias em alguma dessas colunas
+    # Critério 6. Verifica se o numero total de registros dentro de cada intervalo é superior a 24 horas
+    elif df['timestamp'].max() - df['timestamp'].min() > pd.Timedelta(hours=24):
+        return (6,
+            f"intervalo total de timestamps é maior que 24 horas, "
+            f"encontrado: {df['timestamp'].max() - df['timestamp'].min()}"
+        , df)
+    # Tratamento. Verificar dia ano, diajuliano, e minuto contem informações vazias em alguma dessas colunas
     elif df[['year', 'day', 'min']].isnull().any(axis=None):
         intervalo = df['timestamp'].max() - df['timestamp'].min()
         # Este error não inválida o teste, mas é importante registrar
