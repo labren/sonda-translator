@@ -123,7 +123,11 @@ def processarArquivo(args):
             mapa_colunas[alias.upper()] = key
 
     # Também normaliza os nomes de colunas do DataFrame
-    data.columns = [col.upper().strip('"') for col in data.columns]
+    try:
+        data.columns = [col.upper().strip('"') for col in data.columns]
+    except:
+        logger.error(f"Error 5 - Não foi possível normalizar os nomes das colunas do arquivo {file_path}.")
+        return pd.DataFrame()
 
     # Aplica o mapeamento apenas às colunas que estão no dicionário
     new_columns = {col: mapa_colunas[col] for col in data.columns if col in mapa_colunas}
