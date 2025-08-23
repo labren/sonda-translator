@@ -12,7 +12,8 @@ def gerar_web(output_path='output/sonda-banco-dados', tipo='SD'):
     # Verifica se arquivo já existe
     if tipo == 'SD':
         output_file = os.path.join(output_path, f'Solarimetrica.parquet')
-        columns_of_interest = ['acronym', 'timestamp', 'year', 'day', 'min', 'glo_avg', 'dir_avg', 'dif_avg', 'lw_avg', 'par_avg', 'lux_avg']
+        columns_of_interest = ['acronym', 'timestamp', 'year', 'day', 'min',
+                                'glo_avg', 'dir_avg', 'dif_avg', 'lw_calc_avg', 'par_avg', 'lux_avg']
     elif tipo == 'MD':
         output_file = os.path.join(output_path, f'Meteorologica.parquet')
     elif tipo == 'WD':
@@ -41,7 +42,7 @@ def gerar_web(output_path='output/sonda-banco-dados', tipo='SD'):
 
     # Create a table with only the columns of interest
     con.execute(f"""CREATE TABLE IF NOT EXISTS solarimetrica AS 
-                SELECT {', '.join(columns_of_interest)} FROM read_parquet('{output_file}')""")
+                SELECT {', '.join(columns_of_interest)} FROM read_parquet('{output_file}', union_by_name=true)""")
 
     # Obter lista de estações únicas
     estacoes_query = "SELECT DISTINCT acronym FROM solarimetrica ORDER BY acronym"
