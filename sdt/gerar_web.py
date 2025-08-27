@@ -84,7 +84,6 @@ def gerar_web(output_path='output/sonda-banco-dados', tipo='SD'):
         ['','','','','','W/m2','W/m2','W/m2','W/m2','µmols/m2.s','klux']
         ])
 
-
         # Query para obter os dados da estação
         query = f"""
         SELECT {', '.join(columns_of_interest)}
@@ -99,43 +98,25 @@ def gerar_web(output_path='output/sonda-banco-dados', tipo='SD'):
 
         # Set timestamp as index
         df['timestamp'] = pd.to_datetime(df['timestamp'])
-        # Fill gaps with interpolation
-        min_timestamp = df['timestamp'].min()
-        max_timestamp = df['timestamp'].max()
-        min_year = min_timestamp.year
-        max_year = max_timestamp.year
-        min_month = min_timestamp.month
-        max_month = max_timestamp.month
-        full_time_index = pd.date_range(start=f'{min_year}-{str(min_month).zfill(2)}-01 00:00:00', 
-                                        end=f'{max_year}-{str(max_month).zfill(2)}-{pd.Period(f"{max_year}-{str(max_month).zfill(2)}").days_in_month} 23:59:00', 
-                                        freq='1 min')
-        df = df.set_index('timestamp').reindex(full_time_index).reset_index().rename(columns={'index': 'timestamp'})
-
-        # Fill NaN value and fill year, day, min and acronym columns
-        df['year'] = df['timestamp'].dt.year.fillna(method='ffill')
-        df['day'] = df['timestamp'].dt.dayofyear.fillna(method='ffill')
-        df['min'] = df['timestamp'].dt.hour * 60 + df['timestamp'].dt.minute
-        df['min'] = df['min'].astype(int)
-        df['acronym'] = df['acronym'].fillna(acronym)
-
-
+    
         # Get years from timestamp
         years_from_timestamp = set(df['timestamp'].dt.year.dropna().unique())
         # Verifica se os anos são diferentes
         if years_from_column != years_from_timestamp:
             logging.warning(f"Estação {acronym}: Anos diferentes entre coluna year ({years_from_column}) e timestamp ({years_from_timestamp})")
-        
-        # Filtrar registros com timestamp válido
-        df = df.dropna(subset=['timestamp'])
-        
-        # Agrupar por ano baseado no timestamp (não na coluna year)
+        # Agrupar por ano baseado no timestamp
         df_year_group = df.groupby(df['timestamp'].dt.year)
         for year, group in df_year_group:
             if pd.isna(year):
                 continue
-            group.columns = multi_columns
+            # Set name of file
             output_file = pathlib.Path(output_web) / f"anual/Solarimetrico/{acronym}/{int(year)}/{acronym}_{int(year)}_SD"
             output_file.parent.mkdir(parents=True, exist_ok=True)
+            # Fill values
+            group = fill_values(group, acronym)
+            # Add multicolumns
+            group.columns = multi_columns
+            # Save to csv
             group.to_csv(output_file.with_suffix('.dat'), index=False)
             os.system(f"zip -j {output_file}.zip {output_file.with_suffix('.dat')}")
             os.remove(output_file.with_suffix('.dat'))
@@ -145,11 +126,41 @@ def gerar_web(output_path='output/sonda-banco-dados', tipo='SD'):
         for (year, month), group in df_year_month:
             if pd.isna(year) or pd.isna(month):
                 continue
-            group.columns = multi_columns
+            # Set name of file
             output_file = pathlib.Path(output_web) / f"mensal/Solarimetrico/{acronym}/{int(year)}/{acronym}_{int(year)}_{str(int(month)).zfill(2)}_SD"
             output_file.parent.mkdir(parents=True, exist_ok=True)
+            # Fill values
+            group = fill_values(group, acronym)
+            # Add multicolumns
+            group.columns = multi_columns
+            # Save csv
             group.to_csv(output_file.with_suffix('.dat'), index=False)
             os.system(f"zip -j {output_file}.zip {output_file.with_suffix('.dat')}")
             os.remove(output_file.with_suffix('.dat'))
     print("Processamento concluído.")
     con.close()
+
+
+def fill_values(df, acronym):
+    # Remove any duplicated values based on timestamp
+    df = df[~df['timestamp'].duplicated(keep='first')]
+
+    # Fill gaps with interpolation
+    min_timestamp = df['timestamp'].min()
+    max_timestamp = df['timestamp'].max()
+    min_year = min_timestamp.year
+    max_year = max_timestamp.year
+    min_month = min_timestamp.month
+    max_month = max_timestamp.month
+    full_time_index = pd.date_range(start=f'{min_year}-{str(min_month).zfill(2)}-01 00:00:00', 
+                                    end=f'{max_year}-{str(max_month).zfill(2)}-{pd.Period(f"{max_year}-{str(max_month).zfill(2)}").days_in_month} 23:59:00', 
+                                    freq='1 min')
+    df = df.set_index('timestamp').reindex(full_time_index).reset_index().rename(columns={'index': 'timestamp'})
+
+    # Fill NaN value and fill year, day, min and acronym columns
+    df['year'] = df['timestamp'].dt.year.fillna(method='ffill')
+    df['day'] = df['timestamp'].dt.dayofyear.fillna(method='ffill')
+    df['min'] = df['timestamp'].dt.hour * 60 + df['timestamp'].dt.minute
+    df['min'] = df['min'].astype(int)
+    df['acronym'] = df['acronym'].fillna(acronym)
+    return df
