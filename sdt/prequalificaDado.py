@@ -2,15 +2,18 @@ import pandas as pd
 import pathlib
 from testeTemporal import testeTemporal
 
-def prequalificarDado(df, estacao, logger):
+def prequalificarDado(df, estacao, logger, header_sensor, file_type, file_path):
 
     """
     Função para qualificar os dados de um DataFrame.
 
     Args:
         df (pd.DataFrame): DataFrame de dado formatado.
-        tipo_dado (str): Tipo do dado.
+        estacao (str): Nome da estação.
         logger (logging.Logger): Logger para registrar erros.
+        header_sensor (dict): Cabeçalhos dos sensores.
+        file_type (str): Tipo do arquivo (MD, SD, WD).
+        file_path (str): Caminho do arquivo.
     Returns:
         pd.DataFrame: DataFrame qualificado.
     """
@@ -35,6 +38,20 @@ def prequalificarDado(df, estacao, logger):
     df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
     # Tratamento 4: Elimina valores com NaN
     df = df.dropna(subset=['timestamp'])
+    # Tratamento 5: Adiciona coluna 'acronym' com o valor da estação em maiúsculas
+    df['acronym'] = estacao.upper()
+
+     # Adiciona cabeçalho ao DataFrame
+    try:
+        sub_header = header_sensor[estacao][file_type]
+    except KeyError:
+        # Registra o erro usando o logger
+        logger.error(f"Error 5 - Não foi possível encontrar o cabeçalho para a estação {estacao} e tipo {file_type} no arquivo {file_path}, um subcabeçalho vazio será adicionado.")
+        sub_header = [''] * len(df.columns)
+        return (5, [], [df], [f"Não foi possível encontrar o cabeçalho para a estação {estacao} e tipo {file_type} no arquivo {file_path}."])
+    # Adiciona o subcabeçalho ao DataFrame
+    sub_header = ['', '', '', '', ''] + sub_header
+    df.columns = pd.MultiIndex.from_tuples(list(zip(df.columns, sub_header)))
 
     ###### PARSING TEMPORAL POR blocos de dia unico #####
     # Encontra dias unicos presentes nos dados
@@ -56,4 +73,11 @@ def prequalificarDado(df, estacao, logger):
         bad_data.append(data_df)
         problemas.append(problema)
 
-    return code_data, good_data, bad_data, problemas
+    # Concatena os dados bons em um único DataFrame por ano e mês
+    good_data = pd.concat(good_data, ignore_index=True) if good_data else pd.DataFrame()
+    good_data_by_month = []
+    month_good_data = good_data.groupby([good_data['timestamp'].dt.year, good_data['timestamp'].dt.month])
+    for _, data in month_good_data:
+        good_data_by_month.append(data)
+
+    return code_data, good_data_by_month, bad_data, problemas

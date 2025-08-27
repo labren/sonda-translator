@@ -153,20 +153,14 @@ def processarArquivo(args):
         # Registra o erro usando o logger
         logger.error(f"WARNING - O arquivo {file_path} contém colunas que não foram processadas: {outros_dados.columns.tolist()}")
 
-    # Encontr atipo completo baseado no file_type
-    # Caso MD, o tipo é Meteorologico
-    # Caso SD, o tipo é Solarimetrico
-    # Caso WD, o tipo é Anemometrico
+    # Encontra o tipo completo baseado no file_type
     tipo_completo = ''
     if file_type == 'MD':
         tipo_completo = 'Meteorologicos'
-        expct_freq = pd.Timedelta(minutes=10)
     elif file_type == 'SD':
         tipo_completo = 'Solarimetricos'
-        expct_freq = pd.Timedelta(minutes=1)
     elif file_type == 'WD':
         tipo_completo = 'Anemometricos'
-        expct_freq = pd.Timedelta(minutes=10)
 
     ##########################################################################
     ### Parte 3 - Prequalificar os dados e separar os bons e ruins ###########
@@ -178,45 +172,14 @@ def processarArquivo(args):
                                        'data_detecao' , 'data_tratamento', 'problema',  'path'])
 
     # Prequalifica os dados, separando os bons e ruins, e retorna o resumo
-    code_data, good_data, bad_data, problemas = prequalificarDado(data, estacao, logger)
-    # Cria um DataFrame para os dados bons
+    code_data, good_data, bad_data, problemas = prequalificarDado(data, estacao, 
+                                                                  logger,  header_sensor, file_type, file_path)
+    
+    # Loop para salvar dados bons
     if len(good_data) > 0:
         for gdata in good_data:
-            # Inicio do mês
-            start = gdata['timestamp'].min().replace(day=1).normalize()
-            # Fim do mês (último dia às 23:59:59)
-            end = (start + pd.offsets.MonthEnd(1)).replace(hour=23, minute=59, second=59)
-            # Preenche o arquivo com o índice mensal
-            novo_indice = pd.date_range(start=start, end=end, freq=expct_freq)
-
-            # Preenche a coluna 'acronym' com o nome da estação e adiciona colunas de ano, dia e minuto
-            gdata['acronym'] = estacao.upper()
-            gdata['year'] = gdata['timestamp'].dt.year.fillna(method='ffill')
-            gdata['day'] = gdata['timestamp'].dt.dayofyear.fillna(method='ffill')
-            gdata['min'] = gdata['timestamp'].dt.hour * 60 + gdata['timestamp'].dt.minute
-            gdata['min'] = gdata['min'].astype(int)
-            # Seta
-            gdata = gdata.set_index('timestamp')
-            
-            # Verificar e tratar timestamps duplicados antes do reindex
-            if gdata.index.duplicated().any():
-                # Opção 1: Manter apenas a primeira ocorrência
-                gdata = gdata[~gdata.index.duplicated(keep='first')]
-            gdata = gdata.reindex(novo_indice)
-            gdata = gdata.rename_axis('timestamp')
-
-            # Adiciona cabeçalho ao DataFrame
-            try:
-                sub_header = header_sensor[estacao][file_type]
-            except KeyError:
-                # Registra o erro usando o logger
-                logger.error(f"Error 5 - Não foi possível encontrar o cabeçalho para a estação {estacao} e tipo {file_type} no arquivo {file_path}, um subcabeçalho vazio será adicionado.")
-                sub_header = [''] * len(gdata.columns)
-                continue
-            # Adiciona o subcabeçalho ao DataFrame
-            sub_header = ['', '', '', '', ''] + sub_header
-            gdata.columns = pd.MultiIndex.from_tuples(list(zip(gdata.columns, sub_header)))
             # Cria o caminho do arquivo de dados bons
+            start = gdata['timestamp'].min()
             file_name = f"{estacao.upper()}_{start.year}_{start.month:02d}_{file_type}_formatado.csv"
             output_path = os.path.join(output_dir, estacao.upper(), tipo_completo, str(start.year))
             file_path = os.path.join(output_path, file_name)
@@ -235,25 +198,11 @@ def processarArquivo(args):
                     edata = edata.set_index('timestamp')
                     # Atualiza dados formatados
                     gdata.update(edata)
-                    # Reseta o índice e salva o arquivo
-                    gdata = gdata.reset_index()
-                    gdata['acronym'] = estacao.upper()
-                    gdata['year'] = gdata['timestamp'].dt.year.fillna(method='ffill')
-                    gdata['day'] = gdata['timestamp'].dt.dayofyear.fillna(method='ffill')
-                    gdata['min'] = gdata['timestamp'].dt.hour * 60 + gdata['timestamp'].dt.minute
-                    gdata['min'] = gdata['min'].astype(int)
+                    # Reseta o índice e salva o arquivo)
                     gdata.to_csv(file_path, index=False)
-            else:
-                # Reseta o índice e salva o arquivo
-                gdata = gdata.reset_index()
-                gdata['acronym'] = estacao.upper()
-                gdata['year'] = gdata['timestamp'].dt.year.fillna(method='ffill')
-                gdata['day'] = gdata['timestamp'].dt.dayofyear.fillna(method='ffill')
-                gdata['min'] = gdata['timestamp'].dt.hour * 60 + gdata['timestamp'].dt.minute
-                gdata['min'] = gdata['min'].astype(int)
-                gdata.to_csv(file_path, index=False)
+            gdata.to_csv(file_path, index=False)
 
-        # Dados ruins
+        # Loop para salvar dados ruins na quarentena
         if len(bad_data) > 0:
             # loop para cada DataFrame de dados ruins
             for bdata in range(len(bad_data)):
