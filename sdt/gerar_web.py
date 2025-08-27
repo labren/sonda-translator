@@ -12,8 +12,8 @@ def gerar_web(output_path='output/sonda-banco-dados', tipo='SD'):
     # Verifica se arquivo já existe
     if tipo == 'SD':
         output_file = os.path.join(output_path, f'Solarimetrica.parquet')
-        columns_of_interest = ['acronym', 'timestamp', 'year', 'day', 'min',
-                                'glo_avg', 'dir_avg', 'dif_avg', 'lw_calc_avg', 'par_avg', 'lux_avg']
+        # columns_of_interest = ['acronym', 'timestamp', 'year', 'day', 'min', 'glo_avg', 'dir_avg', 'dif_avg', 'lw_calc_avg', 'par_avg', 'lux_avg']
+        columns_of_interest = ['acronym', 'timestamp', 'year', 'day', 'min', 'glo_avg', 'dir_avg', 'dif_avg', 'lw_avg', 'par_avg', 'lux_avg']
     elif tipo == 'MD':
         output_file = os.path.join(output_path, f'Meteorologica.parquet')
     elif tipo == 'WD':
@@ -39,6 +39,10 @@ def gerar_web(output_path='output/sonda-banco-dados', tipo='SD'):
 
     # Create database in file mode
     con = duckdb.connect()
+
+    # Show available columns in the input file
+    # available_columns = con.execute(f"SELECT * FROM read_parquet('{output_file}', union_by_name=true) LIMIT 0").df().columns.tolist()
+    # print(available_columns)
 
     # Create a table with only the columns of interest
     con.execute(f"""CREATE TABLE IF NOT EXISTS solarimetrica AS 
@@ -95,11 +99,26 @@ def gerar_web(output_path='output/sonda-banco-dados', tipo='SD'):
 
         # Set timestamp as index
         df['timestamp'] = pd.to_datetime(df['timestamp'])
-        # Fill when is empty
+        # Fill gaps with interpolation
+        min_timestamp = df['timestamp'].min()
+        max_timestamp = df['timestamp'].max()
+        min_year = min_timestamp.year
+        max_year = max_timestamp.year
+        min_month = min_timestamp.month
+        max_month = max_timestamp.month
+        full_time_index = pd.date_range(start=f'{min_year}-{str(min_month).zfill(2)}-01 00:00:00', 
+                                        end=f'{max_year}-{str(max_month).zfill(2)}-{pd.Period(f"{max_year}-{str(max_month).zfill(2)}").days_in_month} 23:59:00', 
+                                        freq='1 min')
+        df = df.set_index('timestamp').reindex(full_time_index).reset_index().rename(columns={'index': 'timestamp'})
+
+        # Fill NaN value and fill year, day, min and acronym columns
         df['year'] = df['timestamp'].dt.year.fillna(method='ffill')
         df['day'] = df['timestamp'].dt.dayofyear.fillna(method='ffill')
         df['min'] = df['timestamp'].dt.hour * 60 + df['timestamp'].dt.minute
         df['min'] = df['min'].astype(int)
+        df['acronym'] = df['acronym'].fillna(acronym)
+
+
         # Get years from timestamp
         years_from_timestamp = set(df['timestamp'].dt.year.dropna().unique())
         # Verifica se os anos são diferentes
