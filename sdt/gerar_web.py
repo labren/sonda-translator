@@ -42,7 +42,6 @@ def gerar_web(output_path='output/sonda-banco-dados', tipo='SD'):
     # Create a table with only the columns of interest
     con.execute(f"""CREATE TABLE IF NOT EXISTS solarimetrica AS 
                 SELECT {', '.join(columns_of_interest)} FROM read_parquet('{output_file}', union_by_name=true)
-                WHERE acronym = 'CGR'
                 """)
 
     # Obter lista de estações únicas
