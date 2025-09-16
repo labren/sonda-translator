@@ -42,6 +42,7 @@ def gerar_web(output_path='output/sonda-banco-dados', tipo='SD'):
     # Create a table with only the columns of interest
     con.execute(f"""CREATE TABLE IF NOT EXISTS solarimetrica AS 
                 SELECT {', '.join(columns_of_interest)} FROM read_parquet('{output_file}', union_by_name=true)
+                WHERE acronym = 'CGR'
                 """)
 
     # Obter lista de estações únicas
@@ -100,23 +101,34 @@ def gerar_web(output_path='output/sonda-banco-dados', tipo='SD'):
             logging.warning(f"Estação {acronym}: Anos diferentes entre coluna year ({years_from_column}) e timestamp ({years_from_timestamp})")
         # Agrupar por ano baseado no timestamp
         df_year_group = df.groupby(df['timestamp'].dt.year)
+        # Save multi_columns to a variable to avoid changing it in the loop
+        original_multi_columns = multi_columns.copy()
+        
         for year, group in df_year_group:
             if pd.isna(year):
                 continue
-
-            # Check if acronym is "CGR" and year < 2021 and replace "CGU" by "CGR"
+            
+            # Determinar o acronym e multi_columns corretos baseado na regra CGR->CGU
             if acronym == "CGR" and int(year) < 2021:
-                multi_columns = check_CGU(multi_columns)
+                # Para CGR antes de 2021, tratar como CGU (mudar metadados e salvar como CGU)
+                current_acronym = "CGU"
+                current_multi_columns = check_CGU(original_multi_columns.copy())
+                group = group.copy()
                 group['acronym'] = "CGU"
-                acronym = "CGU"
-
+            else:
+                # Para qualquer outro caso, usar valores originais
+                current_acronym = acronym
+                current_multi_columns = original_multi_columns.copy()
+                group = group.copy()
+                group['acronym'] = acronym
+                
             # Set name of file
-            output_file = pathlib.Path(output_web) / f"anual/Solarimetrico/{acronym}/{int(year)}/{acronym}_{int(year)}_SD"
+            output_file = pathlib.Path(output_web) / f"anual/Solarimetrico/{current_acronym}/{int(year)}/{current_acronym}_{int(year)}_SD"
             output_file.parent.mkdir(parents=True, exist_ok=True)
             # Fill values
-            group = fill_values(group, acronym)
+            group = fill_values(group, current_acronym)
             # Add multicolumns
-            group.columns = multi_columns
+            group.columns = current_multi_columns
             # Save to csv
             group.to_csv(output_file.with_suffix('.dat'), index=False)
             os.system(f"zip -j {output_file}.zip {output_file.with_suffix('.dat')}")
@@ -124,23 +136,32 @@ def gerar_web(output_path='output/sonda-banco-dados', tipo='SD'):
 
         # Agrupa por ano e mês (usando a mesma base de dados)
         df_year_month = df.groupby([df['timestamp'].dt.year, df['timestamp'].dt.month])
+        
         for (year, month), group in df_year_month:
             if pd.isna(year) or pd.isna(month):
                 continue
 
-            # Check if acronym is "CGR" and year < 2021 and replace "CGU" by "CGR"
+            # Determinar o acronym e multi_columns corretos baseado na regra CGR->CGU
             if acronym == "CGR" and int(year) < 2021:
-                multi_columns = check_CGU(multi_columns)
+                # Para CGR antes de 2021, tratar como CGU (mudar metadados e salvar como CGU)
+                current_acronym = "CGU"
+                current_multi_columns = check_CGU(original_multi_columns.copy())
+                group = group.copy()
                 group['acronym'] = "CGU"
-                acronym = "CGU"
+            else:
+                # Para qualquer outro caso, usar valores originais
+                current_acronym = acronym
+                current_multi_columns = original_multi_columns.copy()
+                group = group.copy()
+                group['acronym'] = acronym
 
             # Set name of file
-            output_file = pathlib.Path(output_web) / f"mensal/Solarimetrico/{acronym}/{int(year)}/{acronym}_{int(year)}_{str(int(month)).zfill(2)}_SD"
+            output_file = pathlib.Path(output_web) / f"mensal/Solarimetrico/{current_acronym}/{int(year)}/{current_acronym}_{int(year)}_{str(int(month)).zfill(2)}_SD"
             output_file.parent.mkdir(parents=True, exist_ok=True)
             # Fill values
-            group = fill_values(group, acronym)
+            group = fill_values(group, current_acronym)
             # Add multicolumns
-            group.columns = multi_columns
+            group.columns = current_multi_columns
             # Save csv
             group.to_csv(output_file.with_suffix('.dat'), index=False)
             os.system(f"zip -j {output_file}.zip {output_file.with_suffix('.dat')}")
@@ -173,19 +194,34 @@ def fill_values(df, acronym):
     df['acronym'] = df['acronym'].fillna(acronym)
     return df
 
-def check_CGU(multi_columns, name='Campo Grande Uniderp', acronym='CGU', latitude=-20.438, longitude=-54.538, altitude=677):
+def check_CGU(multi_columns, name='Campo Grande UNIDERP', acronym='CGU', latitude=-20.438, longitude=-54.538, altitude=677):
+    """
+    Função para alterar os metadados quando CGR < 2021 deve usar informações de CGU
+    """
     level_0 = list(multi_columns.get_level_values(0))
     level_1 = list(multi_columns.get_level_values(1))
     level_2 = list(multi_columns.get_level_values(2))
-    level_0 = [acronym if x == 'CGR' else x for x in level_0]
-    level_0 = [name if 'Campo Grande' in str(x) else x for x in level_0]
-    level_0 = [f'lat:{latitude}' if 'lat:' in str(x) else x for x in level_0]
-    level_0 = [f'lon:{longitude}' if 'lon:' in str(x) else x for x in level_0]
-    level_0 = [f'alt:{altitude}' if 'alt:' in str(x) else x for x in level_0]
+    
+    # Substituir o primeiro elemento (acronym) por CGU
+    if len(level_0) > 0:
+        level_0[0] = acronym
+    
+    # Substituir informações de CGR pelas informações corretas de CGU
+    for i, x in enumerate(level_0):
+        if 'Campo Grande' in str(x) or 'CGR' in str(x):
+            level_0[i] = name
+        elif 'lat:' in str(x):
+            level_0[i] = f'lat:{latitude}'
+        elif 'lon:' in str(x):
+            level_0[i] = f'lon:{longitude}'
+        elif 'alt:' in str(x):
+            level_0[i] = f'alt:{altitude}'
+    
     # Ensure all arrays have the same length
     min_len = min(len(level_0), len(level_1), len(level_2))
     level_0 = level_0[:min_len]
     level_1 = level_1[:min_len]
     level_2 = level_2[:min_len]
+    
     new_multi_columns = pd.MultiIndex.from_arrays([level_0, level_1, level_2])
     return new_multi_columns
