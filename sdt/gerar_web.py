@@ -12,8 +12,7 @@ def gerar_web(output_path='output/sonda-banco-dados', tipo='SD'):
     # Verifica se arquivo já existe
     if tipo == 'SD':
         output_file = os.path.join(output_path, f'Solarimetrica.parquet')
-        # columns_of_interest = ['acronym', 'timestamp', 'year', 'day', 'min', 'glo_avg', 'dir_avg', 'dif_avg', 'lw_calc_avg', 'par_avg', 'lux_avg']
-        columns_of_interest = ['acronym', 'timestamp', 'year', 'day', 'min', 'glo_avg', 'dir_avg', 'dif_avg', 'lw_avg', 'par_avg', 'lux_avg']
+        columns_of_interest = ['timestamp', 'acronym', 'year', 'day', 'min', 'glo_avg', 'dir_avg', 'dif_avg', 'lw_avg', 'par_avg', 'lux_avg']
     elif tipo == 'MD':
         output_file = os.path.join(output_path, f'Meteorologica.parquet')
     elif tipo == 'WD':
@@ -40,13 +39,10 @@ def gerar_web(output_path='output/sonda-banco-dados', tipo='SD'):
     # Create database in file mode
     con = duckdb.connect()
 
-    # Show available columns in the input file
-    # available_columns = con.execute(f"SELECT * FROM read_parquet('{output_file}', union_by_name=true) LIMIT 0").df().columns.tolist()
-    # print(available_columns)
-
     # Create a table with only the columns of interest
     con.execute(f"""CREATE TABLE IF NOT EXISTS solarimetrica AS 
-                SELECT {', '.join(columns_of_interest)} FROM read_parquet('{output_file}', union_by_name=true)""")
+                SELECT {', '.join(columns_of_interest)} FROM read_parquet('{output_file}', union_by_name=true)
+                """)
 
     # Obter lista de estações únicas
     estacoes_query = "SELECT DISTINCT acronym FROM solarimetrica ORDER BY acronym"
@@ -62,7 +58,6 @@ def gerar_web(output_path='output/sonda-banco-dados', tipo='SD'):
     for estacao_row in estacoes:
         acronym = estacao_row[0]
         print(f"Processando estação: {acronym}")
-
         # Pega o nome da estação de estacoes_df
         estacao_info = estacoes_df[estacoes_df['Sigla'] == acronym]
         if estacao_info.empty:
@@ -98,7 +93,6 @@ def gerar_web(output_path='output/sonda-banco-dados', tipo='SD'):
 
         # Set timestamp as index
         df['timestamp'] = pd.to_datetime(df['timestamp'])
-    
         # Get years from timestamp
         years_from_timestamp = set(df['timestamp'].dt.year.dropna().unique())
         # Verifica se os anos são diferentes
@@ -109,6 +103,13 @@ def gerar_web(output_path='output/sonda-banco-dados', tipo='SD'):
         for year, group in df_year_group:
             if pd.isna(year):
                 continue
+
+            # Check if acronym is "CGR" and year < 2021 and replace "CGU" by "CGR"
+            if acronym == "CGR" and int(year) < 2021:
+                multi_columns = check_CGU(multi_columns)
+                group['acronym'] = "CGU"
+                acronym = "CGU"
+
             # Set name of file
             output_file = pathlib.Path(output_web) / f"anual/Solarimetrico/{acronym}/{int(year)}/{acronym}_{int(year)}_SD"
             output_file.parent.mkdir(parents=True, exist_ok=True)
@@ -117,6 +118,8 @@ def gerar_web(output_path='output/sonda-banco-dados', tipo='SD'):
             # Add multicolumns
             group.columns = multi_columns
             # Save to csv
+            print(group)
+            exit()
             group.to_csv(output_file.with_suffix('.dat'), index=False)
             os.system(f"zip -j {output_file}.zip {output_file.with_suffix('.dat')}")
             os.remove(output_file.with_suffix('.dat'))
@@ -126,6 +129,13 @@ def gerar_web(output_path='output/sonda-banco-dados', tipo='SD'):
         for (year, month), group in df_year_month:
             if pd.isna(year) or pd.isna(month):
                 continue
+
+            # Check if acronym is "CGR" and year < 2021 and replace "CGU" by "CGR"
+            if acronym == "CGR" and int(year) < 2021:
+                multi_columns = check_CGU(multi_columns)
+                group['acronym'] = "CGU"
+                acronym = "CGU"
+
             # Set name of file
             output_file = pathlib.Path(output_web) / f"mensal/Solarimetrico/{acronym}/{int(year)}/{acronym}_{int(year)}_{str(int(month)).zfill(2)}_SD"
             output_file.parent.mkdir(parents=True, exist_ok=True)
@@ -164,3 +174,20 @@ def fill_values(df, acronym):
     df['min'] = df['min'].astype(int)
     df['acronym'] = df['acronym'].fillna(acronym)
     return df
+
+def check_CGU(multi_columns, name='Campo Grande Uniderp', acronym='CGU', latitude=-20.438, longitude=-54.538, altitude=677):
+    level_0 = list(multi_columns.get_level_values(0))
+    level_1 = list(multi_columns.get_level_values(1))
+    level_2 = list(multi_columns.get_level_values(2))
+    level_0 = [acronym if x == 'CGR' else x for x in level_0]
+    level_0 = [name if 'Campo Grande' in str(x) else x for x in level_0]
+    level_0 = [f'lat:{latitude}' if 'lat:' in str(x) else x for x in level_0]
+    level_0 = [f'lon:{longitude}' if 'lon:' in str(x) else x for x in level_0]
+    level_0 = [f'alt:{altitude}' if 'alt:' in str(x) else x for x in level_0]
+    # Ensure all arrays have the same length
+    min_len = min(len(level_0), len(level_1), len(level_2))
+    level_0 = level_0[:min_len]
+    level_1 = level_1[:min_len]
+    level_2 = level_2[:min_len]
+    new_multi_columns = pd.MultiIndex.from_arrays([level_0, level_1, level_2])
+    return new_multi_columns

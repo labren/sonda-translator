@@ -1,7 +1,6 @@
 *conexaoFTP.json
 *.DAT
 *.dat
-*.csv
 *.out
 *.db
 *.parquet
@@ -10,6 +9,7 @@
 *.txt
 ftp/
 error_log.txt
+output*/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
