@@ -118,8 +118,6 @@ def gerar_web(output_path='output/sonda-banco-dados', tipo='SD'):
             # Add multicolumns
             group.columns = multi_columns
             # Save to csv
-            print(group)
-            exit()
             group.to_csv(output_file.with_suffix('.dat'), index=False)
             os.system(f"zip -j {output_file}.zip {output_file.with_suffix('.dat')}")
             os.remove(output_file.with_suffix('.dat'))
