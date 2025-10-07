@@ -4,6 +4,7 @@ import pandas as pd
 import pathlib
 import warnings
 from prequalificaDado import prequalificarDado
+from carregaCabecalhos import cabecalhoManual
 warnings.filterwarnings("ignore")
 
 
@@ -25,7 +26,7 @@ def processarArquivo(args):
         None
     """
     # Desempacota os argumentos
-    file_path, estacao, file_type, output_dir, overwrite, logger, headers, header_sensor = args
+    file_path, estacao, file_type, output_dir, overwrite, logger, headers, header_sensor, manual_header = args
 
     # Check if the file exists
     if not os.path.exists(file_path):
@@ -57,18 +58,24 @@ def processarArquivo(args):
         if any(keyword in str(row) for keyword in ['TIMESTAMP', 'RECORD', 'Id', 'Year', 'Jday', 'Min']):
             header_row = i
             break
-    # Se a linha de cabeçalho não for encontrada, pega os valores da primeira linha
-    # e coloca como cabeçalho, caso contrário será um cabeçalho vazio com o mesmo numero de colunas
-    # do arquivo.
-    try:
-        if header_row is None:
-            header_row = find_data.iloc[0].tolist()
-        else:
-            header_row = find_data.iloc[header_row].tolist()
-    except:
-        logger.error(f"Error 2 - Não foi possível encontrar o cabeçalho no arquivo {file_path}.")
-        return pd.DataFrame()
-
+    # Verifica se existe manual_header e se o tipo e nome batem
+    if manual_header:
+        # Verifica se o cabeçalho é válido, ou seja, se não é uma lista de NaN ou apenas numeros
+        header_row = cabecalhoManual(manual_header, logger)
+        file_type = manual_header[1].upper()
+    else:
+        # Se a linha de cabeçalho não for encontrada, pega os valores da primeira linha
+        # e coloca como cabeçalho, caso contrário será um cabeçalho vazio com o mesmo numero de colunas
+        # do arquivo.
+        try:
+            if header_row is None:
+                header_row = find_data.iloc[0].tolist()
+            else:
+                header_row = find_data.iloc[header_row].tolist()
+        except:
+            logger.error(f"Error 2 - Não foi possível encontrar o cabeçalho no arquivo {file_path}.")
+            return pd.DataFrame()
+    
     # Encontra a linha de dados. Nesta linha, a maioria dos valores deve ser numérico.
     # Caso contrário, continue procurando. E se não houver linha de dados, retorne None.
     data_row = 0
@@ -104,7 +111,6 @@ def processarArquivo(args):
         logger.error(f"Error 3 - Não foi possível adicionar o cabeçalho ao arquivo {file_path} \
             durante o processo de encontrar dados.\nDetalhes do erro: {str(e)}")
         return pd.DataFrame()
-    
     # Pega o cabeçalho principal baseado no file_type
     try:
         main_header = headers[file_type]
@@ -112,7 +118,7 @@ def processarArquivo(args):
         # Registra o erro usando o logger
         logger.error(f"Error 4 - Não foi possível encontrar o cabeçalho para o tipo {file_type} no arquivo {file_path}.")
         return pd.DataFrame()
-    
+
     # Remove aspas duplas dos nomes das colunas    
     data.columns = data.columns.str.strip('"')
 

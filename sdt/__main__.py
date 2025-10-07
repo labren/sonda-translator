@@ -52,7 +52,7 @@ if __name__ == "__main__":
                         default='')
     parser.add_argument('-tipo', type=str,
                 help='Tipo de dado a ser buscado: SD (Solar Data), MD (Meteorological Data), WD (Wind Data)',
-                choices=['SD', 'MD', 'WD', 'INDEFINIDO', 'TD'])
+                choices=['SD', 'MD', 'WD', 'INDEFINIDO', 'TD'])                        
     parser.add_argument('-parallel', type=lambda x: bool(strtobool(x)), default=False,
                         help='Paraleliza o processamento dos arquivos (recomendado para grandes volumes)')
     parser.add_argument('-id', type=int,
@@ -75,8 +75,13 @@ if __name__ == "__main__":
                         help='Gera base de dados dos arquivos formatados em formato .parquet')
     parser.add_argument('-gerar_web', action='store_true',
                         help='Gerar dados de publicação web a partir da base de dados')
+    parser.add_argument('-manual_header', nargs=3, metavar=('estacao', 'tipo', 'fsl_id'), default=None,
+                    help='Usa cabeçalhos manuais definidos no arquivo manual_header.json \
+                            o padrão de uso é: -manual_header <estacao> <tipo> <id> \
+                            ex: -manual_header nat SD 1 para usar o cabeçalho manual da estação nat do tipo SD com id 1'
+                                )
     args = parser.parse_args()
-    
+
     # If scan_ftp is specified, scan the FTP directory for .dat files
     if args.scan_ftp:
         scan_ftp_main(args.ftp_dir)
@@ -201,7 +206,8 @@ if __name__ == "__main__":
                                         [args.overwrite] * len(dat_files_to_process),
                                         [logger] * len(dat_files_to_process),
                                         [headers] * len(dat_files_to_process),
-                                        [header_sensor] * len(dat_files_to_process))):
+                                        [header_sensor] * len(dat_files_to_process,
+                                        [args.manual_header] * len(dat_files_to_process)))):
                 summary_results.append(result)
                 pbar.update()
         pool.close()
@@ -213,7 +219,7 @@ if __name__ == "__main__":
                                         dat_files_stations):
             result = processarArquivo((file_path, estacao,
                         file_type, args.output,
-                        args.overwrite, logger, headers, header_sensor))
+                        args.overwrite, logger, headers, header_sensor, args.manual_header))
             pbar.update()
             summary_results.append(result)
     pbar.close()

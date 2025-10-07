@@ -30,15 +30,24 @@ def prequalificarDado(df, estacao, logger, header_sensor, file_type, file_path):
     problemas = []
 
     ###### TRATAMENTO INICIAL #####
-    # Tratamento 1: Elimina linhas duplicadas, mantem a última
+    # Tratamento 1: Verifica se todos os valores da coluna 'timestamp' são NaN
+    if df['timestamp'].isna().all():
+        # Insere os valores das colunas Year  Day   Min para criar a coluna timestamp, Day é o dia do ano
+        year = df['year'].astype(int).astype(str).str.zfill(4)
+        day = df['day'].astype(int).astype(str).str.zfill(3)
+        minute = df['min'].astype(int).astype(str).str.zfill(4)
+        # Adiciona a coluna timestamp com o formato YYYY-DDD HHMM
+        df['timestamp'] = pd.to_datetime(year + '-' + day + ' ' + minute, format='%Y-%j %H%M', errors='coerce')
+
+    # Tratamento 2: Elimina linhas duplicadas, mantem a última
     df = df.drop_duplicates(keep='first').reset_index(drop=True)
-    # Tratamento 2: Verifica se existem características inválidas na coluna 'timestamp'
+    # Tratamento 3: Verifica se existem características inválidas na coluna 'timestamp'
     df['timestamp'] = df['timestamp'].astype(str).str.replace(r'[^0-9:/\-\s]', '', regex=True)
-    # Tratamento 3: Converte a coluna 'timestamp' para datetime, ignorando erros
+    # Tratamento 4: Converte a coluna 'timestamp' para datetime, ignorando erros
     df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
-    # Tratamento 4: Elimina valores com NaN
+    # Tratamento 5: Elimina valores com NaN
     df = df.dropna(subset=['timestamp'])
-    # Tratamento 5: Adiciona coluna 'acronym' com o valor da estação em maiúsculas
+    # Tratamento 6: Adiciona coluna 'acronym' com o valor da estação em maiúsculas
     df['acronym'] = estacao.upper()
 
      # Adiciona cabeçalho ao DataFrame
