@@ -35,9 +35,9 @@ def prequalificarDado(df, estacao, logger, header_sensor, file_type, file_path):
         # Insere os valores das colunas Year  Day   Min para criar a coluna timestamp, Day é o dia do ano
         year = df['year'].astype(int).astype(str).str.zfill(4)
         day = df['day'].astype(int).astype(str).str.zfill(3)
-        minute = df['min'].astype(int).astype(str).str.zfill(4)
-        # Adiciona a coluna timestamp com o formato YYYY-DDD HHMM
-        df['timestamp'] = pd.to_datetime(year + '-' + day + ' ' + minute, format='%Y-%j %H%M', errors='coerce')
+        hour = (df['min'] // 60).astype(int).astype(str).str.zfill(2)
+        minute = (df['min'] % 60).astype(int).astype(str).str.zfill(2)
+        df['timestamp'] = pd.to_datetime(year + day + hour + minute, format='%Y%j%H%M', errors='coerce')
 
     # Tratamento 2: Elimina linhas duplicadas, mantem a última
     df = df.drop_duplicates(keep='first').reset_index(drop=True)
