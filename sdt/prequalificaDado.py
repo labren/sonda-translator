@@ -38,7 +38,11 @@ def prequalificarDado(df, estacao, logger, header_sensor, file_type, file_path):
         hour = (df['min'] // 60).astype(int).astype(str).str.zfill(2)
         minute = (df['min'] % 60).astype(int).astype(str).str.zfill(2)
         df['timestamp'] = pd.to_datetime(year + day + hour + minute, format='%Y%j%H%M', errors='coerce')
-
+        # Verifica se estacao for NAT, e acrescenta 3 horas
+        if estacao.upper() == 'NAT':
+            df['timestamp'] = df['timestamp'] + pd.Timedelta(hours=3)
+        # Ajusta a coluna min para refletir a hora e minuto corretos
+        df['min'] = df['timestamp'].dt.hour * 60 + df['timestamp'].dt.minute
     # Tratamento 2: Elimina linhas duplicadas, mantem a última
     df = df.drop_duplicates(keep='first').reset_index(drop=True)
     # Tratamento 3: Verifica se existem características inválidas na coluna 'timestamp'
@@ -81,6 +85,10 @@ def prequalificarDado(df, estacao, logger, header_sensor, file_type, file_path):
         code_data.append(code)
         bad_data.append(data_df)
         problemas.append(problema)
+
+    # Se não houver dados bons, retorna listas vazias
+    if len(good_data) == 0:
+        return code_data, [], bad_data, problemas
 
     # Concatena os dados bons em um único DataFrame por ano e mês
     good_data = pd.concat(good_data, ignore_index=True) if good_data else pd.DataFrame()
