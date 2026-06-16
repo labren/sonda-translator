@@ -26,6 +26,16 @@ def gerarBase(output_dir, tipo, cabecalhos, overwrite=False):
     global con
     con = duckdb.connect(database=arquivo_db)
 
+    # Configurações de memória para evitar OutOfMemoryException
+    # Limita o uso de RAM e permite que o DuckDB use disco quando necessário
+    pasta_temp = os.path.join(pasta_dbs, 'tmp')
+    pathlib.Path(pasta_temp).mkdir(parents=True, exist_ok=True)
+    con.execute(f"SET temp_directory = '{pasta_temp}'")
+    con.execute("SET memory_limit = '8GB'")
+    con.execute("SET threads = 4")
+    # Permite que operações de ordenação/agregação façam spill para disco
+    con.execute("SET enable_external_access = true")
+
     print(f"Criando base de dados em {output_base}...")
     variaveis = cabecalhos[tipo].keys()
     nome_base = tipo_completo.split('.')[0].upper()
