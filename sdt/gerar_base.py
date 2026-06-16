@@ -33,8 +33,6 @@ def gerarBase(output_dir, tipo, cabecalhos, overwrite=False):
     con.execute(f"SET temp_directory = '{pasta_temp}'")
     con.execute("SET memory_limit = '8GB'")
     con.execute("SET threads = 4")
-    # Permite que operações de ordenação/agregação façam spill para disco
-    con.execute("SET enable_external_access = true")
 
     print(f"Criando base de dados em {output_base}...")
     variaveis = cabecalhos[tipo].keys()
