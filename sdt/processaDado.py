@@ -2,6 +2,7 @@ import os
 import duckdb
 import pandas as pd
 import pathlib
+import traceback
 import warnings
 from prequalificaDado import prequalificarDado
 from carregaCabecalhos import cabecalhoManual
@@ -68,7 +69,30 @@ def _ler_csv_tolerante(file_path, **opcoes):
 
 
 def processarArquivo(args):
+    """
+    Rede de segurança em torno do processamento de UM arquivo.
 
+    Qualquer erro inesperado (formato desconhecido, dado corrompido, etc.) é
+    registrado no log e o arquivo é PULADO, devolvendo um DataFrame vazio, em vez
+    de derrubar o processamento do lote inteiro. Protege tanto o modo sequencial
+    quanto o paralelo, pois ambos chamam esta função.
+    """
+    try:
+        return _processarArquivo(args)
+    except Exception as e:
+        # Extrai file_path (args[0]) e logger (args[5]) de forma defensiva para a
+        # mensagem de erro, sem assumir que a tupla está bem-formada.
+        file_path = args[0] if isinstance(args, (tuple, list)) and len(args) > 0 else "<desconhecido>"
+        logger = args[5] if isinstance(args, (tuple, list)) and len(args) > 5 else None
+        msg = (f"Error 99 - Erro inesperado ao processar {file_path}; arquivo PULADO.\n"
+               f"Detalhes: {type(e).__name__}: {e}\n{traceback.format_exc()}")
+        if logger is not None:
+            logger.error(msg)
+        print(msg)
+        return pd.DataFrame()
+
+
+def _processarArquivo(args):
     """
     Função para ler arquivos de dados e processá-los.
     Args:

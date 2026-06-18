@@ -32,6 +32,21 @@ def prequalificarDado(df, estacao, logger, header_sensor, file_type, file_path):
     ###### TRATAMENTO INICIAL #####
     # Tratamento 1: Verifica se todos os valores da coluna 'timestamp' são NaN
     if df['timestamp'].isna().all():
+        # Sem 'timestamp' utilizável: reconstrói a data a partir de year/day/min
+        # (Day = dia do ano). Converte para numérico e descarta as linhas em que
+        # year/day/min estão ausentes (NA), pois astype(int) quebra com NAType
+        # ("int() argument must be ... not 'NAType'").
+        df = df.copy()
+        for _col in ['year', 'day', 'min']:
+            df[_col] = pd.to_numeric(df[_col], errors='coerce')
+        df = df.dropna(subset=['year', 'day', 'min']).reset_index(drop=True)
+        # Se não sobrou nenhuma linha com year/day/min válidos, não há como montar
+        # o timestamp: registra o aviso e devolve o dado como problemático, em vez
+        # de derrubar o processamento do lote inteiro.
+        if df.empty:
+            logger.error(f"Error 6 - Arquivo {file_path} (estação {estacao}, tipo {file_type}) "
+                         f"não tem 'timestamp' nem year/day/min válidos para reconstruir a data.")
+            return (6, [], [], ["sem 'timestamp' e sem year/day/min válidos para reconstruir a data"])
         # Insere os valores das colunas Year  Day   Min para criar a coluna timestamp, Day é o dia do ano
         year = df['year'].astype(int).astype(str).str.zfill(4)
         day = df['day'].astype(int).astype(str).str.zfill(3)
