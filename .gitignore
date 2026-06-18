@@ -11,6 +11,8 @@ ftp/
 error_log.txt
 output*/
 
+CLAUDE.md
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

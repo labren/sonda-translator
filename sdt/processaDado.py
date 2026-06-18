@@ -34,14 +34,26 @@ def processarArquivo(args):
     ############################################################################
     ############ Parte 1 - Encontrar o cabeçalho e a linha de dados ############
     ############################################################################
-    # Tenta ler as 10 primeiras linhas do arquivo para encontrar o cabeçalho
-    # e a linha de dados. Caso não consiga, retorna None.
+    # ---- Leitura BRUTA, somente para detectar a ESTRUTURA do arquivo ----
+    # Esta leitura NÃO é usada como dado final; serve apenas para localizar a
+    # linha de cabeçalho, a linha de dados e extrair os nomes das colunas. Ler em
+    # duas passagens com read_csv_auto independentes fazia o DuckDB inferir
+    # larguras diferentes (ex.: 8 colunas na amostra x 40 nos dados), provocando o
+    # "Length mismatch" ao atribuir o cabeçalho. Aqui forçamos uma largura única e
+    # consistente, sem alterar nenhum valor:
+    #   - header=false: nenhuma linha é tratada como cabeçalho (achamos manualmente)
+    #   - all_varchar=true: tudo como texto, apenas para inspeção estrutural
+    #   - null_padding=true: completa linhas curtas (ex.: linha de ambiente do TOA5)
+    #   - sample_size=-1: varre o arquivo todo para detectar o nº máximo de colunas
     try:
-        find_data = duckdb.query(f"""
-            SELECT * 
+        raw = duckdb.query(f"""
+            SELECT *
             FROM read_csv_auto('{file_path}',
-            ignore_errors=true)
-            LIMIT 10
+            header=false,
+            all_varchar=true,
+            ignore_errors=true,
+            null_padding=true,
+            sample_size=-1)
         """).df()
     except Exception as e:
         logger.error(f"Error 1 - Não foi possível ler o arquivo {file_path} \
@@ -49,75 +61,87 @@ def processarArquivo(args):
         print(f"Error 1 - Não foi possível ler o arquivo {file_path} \
             durante o processo de encontrar dados.\nDetalhes do erro: {str(e)}")
         return pd.DataFrame()
-    
-    # Encontra linha de cabeçalho passando por todas as linhas do arquivo
-    # A linha de cabeçalho deve conter qualquer uma das palavras-chave
-    # 'TIMESTAMP', 'RECORD', 'Id', 'Year', 'Jday', 'Min'. 
-    # Caso contrário, a linha de cabeçalho será None.
+
+    # Se o arquivo está vazio ou não pôde ser interpretado, não há o que processar.
+    if raw.empty:
+        logger.error(f"Error 1 - Arquivo {file_path} está vazio ou não pôde ser lido.")
+        print(f"Error 1 - Arquivo {file_path} está vazio ou não pôde ser lido.")
+        return pd.DataFrame()
+
+    # Encontra a linha de cabeçalho nas primeiras linhas do arquivo. A linha de
+    # cabeçalho deve conter qualquer uma das palavras-chave abaixo.
     # TODO: Verificar em alguns casos pois as variáveis podem não ser exatamente desta forma.
     header_row = None
-    for i, row in find_data.iterrows():
-        if any(keyword in str(row) for keyword in ['TIMESTAMP', 'RECORD', 'Id', 'Year', 'Jday', 'Min']):
+    for i in range(min(len(raw), 10)):
+        if any(keyword in str(raw.iloc[i]) for keyword in ['TIMESTAMP', 'RECORD', 'Id', 'Year', 'Jday', 'Min']):
             header_row = i
             break
-    # Verifica se existe manual_header e se o tipo e nome batem
+
+    # Define os nomes das colunas (header_names) a partir do manual_header, da
+    # linha de cabeçalho detectada ou, em último caso, da primeira linha. Como
+    # raw tem largura única (null_padding), header_names já vem completo.
     if manual_header:
-        # Verifica se o cabeçalho é válido, ou seja, se não é uma lista de NaN ou apenas numeros
-        header_row = cabecalhoManual(manual_header, logger)
+        header_names = cabecalhoManual(manual_header, logger)
         file_type = manual_header[1].upper()
+        if header_names is None:
+            logger.error(f"Error 2 - Cabeçalho manual inválido para o arquivo {file_path}.")
+            print(f"Error 2 - Cabeçalho manual inválido para o arquivo {file_path}.")
+            return pd.DataFrame()
     else:
-        # Se a linha de cabeçalho não for encontrada, pega os valores da primeira linha
-        # e coloca como cabeçalho, caso contrário será um cabeçalho vazio com o mesmo numero de colunas
-        # do arquivo.
         try:
-            if header_row is None:
-                header_row = find_data.iloc[0].tolist()
-            else:
-                header_row = find_data.iloc[header_row].tolist()
-        except:
+            origem = 0 if header_row is None else header_row
+            header_names = raw.iloc[origem].tolist()
+        except Exception:
             logger.error(f"Error 2 - Não foi possível encontrar o cabeçalho no arquivo {file_path}.")
             print(f"Error 2 - Não foi possível encontrar o cabeçalho no arquivo {file_path}.")
             return pd.DataFrame()
-    
-    # Encontra a linha de dados. Nesta linha, a maioria dos valores deve ser numérico.
-    # Caso contrário, continue procurando. E se não houver linha de dados, retorne None.
+
+    # Encontra a primeira linha de dados: aquela em que a maioria dos valores é numérica.
     data_row = 0
-    # Faz um cast para float na maioria dos valores para tentar encontrar a linha de dados
-    # Se não for possível, ignora o erro e continua
-    for i, row in find_data.iterrows():
-        numeric_row = pd.to_numeric(row, errors='coerce')
-        if numeric_row.notna().sum() > len(row) / 2:
+    for i in range(len(raw)):
+        numeric_row = pd.to_numeric(raw.iloc[i], errors='coerce')
+        if numeric_row.notna().sum() > len(raw.columns) / 2:
             data_row = i
             break
 
     ############################################################################
-    ### Parte 2 - Ler o arquivo novamente com o cabeçalho e a linha de dados ###
+    ### Parte 2 - Lê os dados a partir da linha de dados e aplica o cabeçalho ###
     ############################################################################
-    #Abre o arquivo novamente, agora com o cabeçalho e a linha de dados encontrados
+    # Lê novamente, mas agora pulando até a linha de dados (skip=data_row) e
+    # deixando o read_csv_auto inferir os tipos NORMALMENTE — os valores NÃO são
+    # manipulados, apenas lidos. header=false evita consumir uma linha de dados
+    # como cabeçalho; null_padding mantém a largura estável.
     try:
         data = duckdb.query(f"""
-            SELECT * 
+            SELECT *
             FROM read_csv_auto('{file_path}',
+            header=false,
             ignore_errors=true,
-            skip={data_row + 1})
+            null_padding=true,
+            sample_size=-1,
+            skip={data_row})
         """).df()
     except Exception as e:
         logger.error(f"Error 2 - Não foi possível ler o arquivo {file_path} \
-            durante o processo de encontrar dados.\nDetalhes do erro: {str(e)} \
-            Os dados encontrados foram: {data}")
+            durante o processo de encontrar dados.\nDetalhes do erro: {str(e)}")
         print(f"Error 2 - Não foi possível ler o arquivo {file_path} \
-            durante o processo de encontrar dados.\nDetalhes do erro: {str(e)} \
-            Os dados encontrados foram: {data}")
-        return pd.DataFrame()
-    # Adiciona o cabeçalho encontrado ao DataFrame
-    try:
-        data.columns = header_row
-    except Exception as e:
-        logger.error(f"Error 3 - Não foi possível adicionar o cabeçalho ao arquivo {file_path} \
-            durante o processo de encontrar dados.\nDetalhes do erro: {str(e)}")
-        print(f"Error 3 - Não foi possível adicionar o cabeçalho ao arquivo {file_path} \
             durante o processo de encontrar dados.\nDetalhes do erro: {str(e)}")
         return pd.DataFrame()
+
+    # Ajusta o tamanho dos NOMES do cabeçalho ao número de colunas dos dados em vez
+    # de falhar (apenas nomes de coluna são ajustados — nenhum dado é alterado):
+    # completa nomes faltantes e descarta os excedentes.
+    header_names = [str(col).strip('"').strip() for col in header_names]
+    n_cols = data.shape[1]
+    if len(header_names) < n_cols:
+        logger.warning(f"WARNING - Cabeçalho do arquivo {file_path} tem {len(header_names)} nomes \
+para {n_cols} colunas. Completando com nomes genéricos.")
+        header_names += [f'coluna_{j}' for j in range(len(header_names), n_cols)]
+    elif len(header_names) > n_cols:
+        logger.warning(f"WARNING - Cabeçalho do arquivo {file_path} tem {len(header_names)} nomes \
+para {n_cols} colunas. Descartando nomes excedentes.")
+        header_names = header_names[:n_cols]
+    data.columns = header_names
     # Pega o cabeçalho principal baseado no file_type
     try:
         main_header = headers[file_type]
@@ -159,7 +183,7 @@ def processarArquivo(args):
 
     # Reordena as colunas do DataFrame para que fiquem na mesma ordem do main_header
     data = data[main_header.keys()]
-    
+
     # Pega colunas que não foram renomeadas e separa em um novo DataFrame
     outros_dados = data.drop(columns=main_header.keys(), errors='ignore')
     # Verifica se tem outros dados e cria um log
