@@ -1,17 +1,31 @@
 #!/bin/bash
 
-# Configuração de conexão
-SRC="USUARIOn@IP:/mnt/ftp/restricted/coleta/"
-DEST="../ftp/restricted/coleta/"
-MAX_RETRIES=10
+SRC="labren@150.163.105.82:/mnt/ftp/restricted/coleta/"
+DEST="/media/helvecioneto/Barracuda/ftp/restricted/coleta/"
+MAX_RETRIES=20
+PARTIAL_DIR="$DEST/.rsync-partial"
+LOG_FILE="$DEST/.rsync.log"
 
 # Função para executar o rsync com tentativas
 sync_files() {
     local attempt=1
+    
+    # Cria diretório para arquivos parciais se não existir
+    mkdir -p "$PARTIAL_DIR"
+    
+    # Define o comando SSH se a chave estiver definida
+    local ssh_cmd=""
+    if [ -n "$SSH_KEY" ]; then
+        ssh_cmd="-e ssh $SSH_KEY"
+    fi
+    
     while [ $attempt -le $MAX_RETRIES ]; do
         echo "Tentativa $attempt de $MAX_RETRIES..."
 
-        rsync -avW --progress --partial --timeout=300 --bwlimit=0 \
+        rsync -avz --progress --partial --partial-dir="$PARTIAL_DIR" \
+            --delay-updates --timeout=300 --bwlimit=0 \
+            --log-file="$LOG_FILE" \
+            $ssh_cmd \
             --exclude='camera/' \
             --exclude='security/' \
             --exclude='*/camera/' \
@@ -28,7 +42,7 @@ sync_files() {
             --exclude='*.pdf' \
             --exclude='*.nc' \
             --prune-empty-dirs \
-            --inplace --delete-delay \
+            --delete-delay \
             --size-only \
             --info=progress2 "$SRC" "$DEST"
 
