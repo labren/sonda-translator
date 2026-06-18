@@ -31,6 +31,8 @@ IO_TIMEOUT="${IO_TIMEOUT:-300}"        # timeout de I/O do rsync (segundos)
 CONN_TIMEOUT="${CONN_TIMEOUT:-30}"     # timeout de conexão SSH (ConnectTimeout, segundos)
 DELETE="${DELETE:-true}"               # espelhar remoções de .DAT do FTP
 DRY_RUN="${DRY_RUN:-false}"            # true = simula sem transferir
+CHECKSUM="${CHECKSUM:-false}"          # true = compara por conteúdo (checksum) em vez de tamanho+data
+VERBOSE="${VERBOSE:-true}"             # true = lista cada arquivo transferido
 
 # Garante barra final nos caminhos (rsync é sensível a isso).
 [[ "$SRC" == */ ]] || SRC="$SRC/"
@@ -71,7 +73,7 @@ sync_files() {
     # Opções base do rsync.
     local rsync_opts=(
         -a                              # modo arquivo (preserva estrutura/permissões/tempos)
-        --info=progress2                # barra de progresso global (rsync 3.x)
+        --info=progress2                # progresso global: %, velocidade, ETA (rsync 3.x)
         --stats                         # estatísticas finais da transferência
         --human-readable
         --partial                       # mantém arquivos parciais para retomar
@@ -83,6 +85,22 @@ sync_files() {
         --prune-empty-dirs              # não cria árvore de diretórios vazia
         -e "$ssh_cmd"
     )
+
+    # Lista cada arquivo conforme é transferido (ajuda a saber o que está
+    # acontecendo). Arquivos PULADOS não são listados — então, em execuções
+    # seguintes, a tela fica naturalmente quieta quando não há nada novo.
+    if [ "$VERBOSE" = "true" ]; then
+        rsync_opts+=(--verbose)
+    fi
+
+    # Critério para considerar um arquivo "já sincronizado" e pular o download:
+    #   - padrão: tamanho + data de modificação (rápido; o -a preserva a data,
+    #     então re-execuções pulam o que é idêntico, sem baixar de novo).
+    #   - CHECKSUM=true: compara o CONTEÚDO (checksum) — mais seguro, porém lê o
+    #     arquivo inteiro nas duas pontas (lento em grandes volumes).
+    if [ "$CHECKSUM" = "true" ]; then
+        rsync_opts+=(--checksum)
+    fi
 
     # Espelha remoções de .DAT (sem nunca apagar arquivos locais que NÃO são
     # alvo do filtro — eles são protegidos por padrão, pois ficam excluídos).
@@ -114,6 +132,9 @@ sync_files() {
 
     while [ "$attempt" -le "$MAX_RETRIES" ]; do
         log "Tentativa $attempt de $MAX_RETRIES..."
+        log "Conectando e varrendo a árvore remota do FTP. A 1ª varredura pode"
+        log "levar alguns minutos SEM mostrar progresso; arquivos já baixados e"
+        log "idênticos são pulados automaticamente (não baixam de novo)."
 
         rsync "${rsync_opts[@]}" "${filters[@]}" "$SRC" "$DEST"
         local rc=$?
