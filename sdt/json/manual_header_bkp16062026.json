@@ -1,0 +1,43 @@
+{
+  "type": "SD",
+  "name": "NAT",
+  "id": {
+    "1": [
+      "117",
+      "Year",  
+      "Day",
+      "Min",
+      "Global_AVG",
+      "Global_STD",
+      "Global_MAX",
+      "Global_MIN",
+      "Diffuse_AVG",
+      "Diffuse_STD",
+      "Diffuse_MAX",
+      "Diffuse_MIN",
+      "Par_AVG",
+      "Par_STD",
+      "Par_MAX",
+      "Par_MIN",
+      "Lux_AVG",
+      "Lux_STD",
+      "Lux_MAX",
+      "Lux_MIN",
+      "Temp_sfc",
+      "Humid",
+      "Press",
+      "Prec",
+      "Ws10_AVG",
+      "Wd10_AVG",
+      "Wd10_STD",
+      "CosAngZen"
+    ],
+    "2": [
+      "string_4",
+      "string_5"
+    ],
+    "3": [
+      "string_6"
+    ]
+  }
+}

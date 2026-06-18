@@ -46,6 +46,8 @@ def processarArquivo(args):
     except Exception as e:
         logger.error(f"Error 1 - Não foi possível ler o arquivo {file_path} \
             durante o processo de encontrar dados.\nDetalhes do erro: {str(e)}")
+        print(f"Error 1 - Não foi possível ler o arquivo {file_path} \
+            durante o processo de encontrar dados.\nDetalhes do erro: {str(e)}")
         return pd.DataFrame()
     
     # Encontra linha de cabeçalho passando por todas as linhas do arquivo
@@ -74,6 +76,7 @@ def processarArquivo(args):
                 header_row = find_data.iloc[header_row].tolist()
         except:
             logger.error(f"Error 2 - Não foi possível encontrar o cabeçalho no arquivo {file_path}.")
+            print(f"Error 2 - Não foi possível encontrar o cabeçalho no arquivo {file_path}.")
             return pd.DataFrame()
     
     # Encontra a linha de dados. Nesta linha, a maioria dos valores deve ser numérico.
@@ -90,7 +93,7 @@ def processarArquivo(args):
     ############################################################################
     ### Parte 2 - Ler o arquivo novamente com o cabeçalho e a linha de dados ###
     ############################################################################
-    # Abre o arquivo novamente, agora com o cabeçalho e a linha de dados encontrados
+    #Abre o arquivo novamente, agora com o cabeçalho e a linha de dados encontrados
     try:
         data = duckdb.query(f"""
             SELECT * 
@@ -102,13 +105,17 @@ def processarArquivo(args):
         logger.error(f"Error 2 - Não foi possível ler o arquivo {file_path} \
             durante o processo de encontrar dados.\nDetalhes do erro: {str(e)} \
             Os dados encontrados foram: {data}")
+        print(f"Error 2 - Não foi possível ler o arquivo {file_path} \
+            durante o processo de encontrar dados.\nDetalhes do erro: {str(e)} \
+            Os dados encontrados foram: {data}")
         return pd.DataFrame()
-    
     # Adiciona o cabeçalho encontrado ao DataFrame
     try:
         data.columns = header_row
     except Exception as e:
         logger.error(f"Error 3 - Não foi possível adicionar o cabeçalho ao arquivo {file_path} \
+            durante o processo de encontrar dados.\nDetalhes do erro: {str(e)}")
+        print(f"Error 3 - Não foi possível adicionar o cabeçalho ao arquivo {file_path} \
             durante o processo de encontrar dados.\nDetalhes do erro: {str(e)}")
         return pd.DataFrame()
     # Pega o cabeçalho principal baseado no file_type
@@ -117,6 +124,7 @@ def processarArquivo(args):
     except KeyError:
         # Registra o erro usando o logger
         logger.error(f"Error 4 - Não foi possível encontrar o cabeçalho para o tipo {file_type} no arquivo {file_path}.")
+        print(f"Error 4 - Não foi possível encontrar o cabeçalho para o tipo {file_type} no arquivo {file_path}.")
         return pd.DataFrame()
 
     # Remove aspas duplas dos nomes das colunas    
@@ -127,12 +135,12 @@ def processarArquivo(args):
     for key, aliases in main_header.items():
         for alias in aliases:
             mapa_colunas[alias.upper()] = key
-
     # Também normaliza os nomes de colunas do DataFrame
     try:
         data.columns = [col.upper().strip('"') for col in data.columns]
     except:
         logger.error(f"Error 5 - Não foi possível normalizar os nomes das colunas do arquivo {file_path}.")
+        print(f"Error 5 - Não foi possível normalizar os nomes das colunas do arquivo {file_path}.")
         return pd.DataFrame()
 
     # Aplica o mapeamento apenas às colunas que estão no dicionário

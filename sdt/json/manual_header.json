@@ -1,10 +1,10 @@
 {
-  "type": "SD",
-  "name": "NAT",
-  "id": {
-    "1": [
+  "NAT": {
+    "type": "SD",
+    "id": {
+      "1": [
       "117",
-      "Year",  
+      "Year",
       "Day",
       "Min",
       "Global_AVG",
@@ -32,12 +32,68 @@
       "Wd10_STD",
       "CosAngZen"
     ],
-    "2": [
+      "2": [
       "string_4",
       "string_5"
     ],
-    "3": [
+      "3": [
       "string_6"
     ]
+    }
+  },
+
+  "BRB": {
+    "type": "SD",
+    "id": {
+      "1": [
+      "110",
+      "Year",
+      "Day",
+      "Min",
+      "Global_AVG",
+      "Global_STD",
+      "Global_MAX",
+      "Global_MIN",
+      "Diffuse_AVG",
+      "Diffuse_STD",
+      "Diffuse_MAX",
+      "Diffuse_MIN",
+      "Par_AVG",
+      "Par_STD",
+      "Par_MAX",
+      "Par_MIN",
+      "Lux_AVG",
+      "Lux_STD",
+      "Lux_MAX",
+      "Lux_MIN",
+      "Temp_sfc",
+      "Humid",
+      "Press",
+      "Prec",
+      "Ws10_AVG",
+      "Wd10_AVG",
+      "Wd10_STD",
+      "CosAngZen",
+      "Direct_AVG",
+      "Direct_STD",
+      "Direct_MAX",
+      "Direct_MIN",
+      "OL_PhiFro_AVG",
+      "OL_PhiFro_STD",
+      "OL_PhiFro_MAX",
+      "OL_PhiFro_MIN",
+      "Temp_Global",
+      "Temp_Direct",
+      "Temp_Diffuse",
+      "Temp_Dome",
+      "Temp_Case",
+      "Long_AVG",
+      "Long_STD",
+      "Long_MAX",
+      "Long_MIN"
+    ],  
+      "2": [],
+      "3": []
+    }
   }
 }
