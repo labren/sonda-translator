@@ -8,6 +8,61 @@ from carregaCabecalhos import cabecalhoManual
 warnings.filterwarnings("ignore")
 
 
+def _ler_csv_tolerante(file_path, **opcoes):
+    """
+    Lê um arquivo CSV/.dat de forma tolerante a diferentes formatos, SEM alterar
+    os valores lidos. Primeiro tenta a detecção automática de dialeto do DuckDB;
+    se o sniffer não conseguir determinar o dialeto (ex.: linhas fora do padrão
+    CSV, cabeçalhos heterogêneos), refaz a leitura com parâmetros explícitos e em
+    modo não-estrito.
+
+    Args:
+        file_path: caminho do arquivo.
+        **opcoes: parâmetros extras do read_csv (ex.: all_varchar=True, skip=N)
+            que sobrescrevem os padrões.
+    Returns:
+        pd.DataFrame com o conteúdo lido.
+    """
+    base = {
+        'header': False,         # cabeçalho é localizado manualmente
+        'ignore_errors': True,   # ignora linhas malformadas isoladas
+        'null_padding': True,    # completa linhas curtas (ex.: linha de ambiente)
+        'sample_size': -1,       # varre o arquivo todo para fixar a largura
+    }
+    base.update(opcoes)
+
+    def _montar(opts):
+        partes = []
+        for chave, valor in opts.items():
+            if isinstance(valor, bool):
+                partes.append(f"{chave}={'true' if valor else 'false'}")
+            elif isinstance(valor, str):
+                partes.append(f"{chave}='{valor}'")
+            else:
+                partes.append(f"{chave}={valor}")
+        return ", ".join(partes)
+
+    # Cadeia de tentativas, da mais automática para a mais permissiva. Nenhuma
+    # delas altera os valores — só mudam a forma de interpretar o arquivo.
+    permissivo = dict(base, delim=',', quote='"', escape='"',
+                      strict_mode=False, max_line_size=10_000_000)
+    tentativas = [
+        base,                                      # 1) detecção automática de dialeto
+        permissivo,                                # 2) dialeto SONDA (vírgula+aspas), não-estrito
+        dict(permissivo, encoding='latin-1'),      # 3) idem, tolerante a bytes não-UTF-8
+    ]
+    erro = None
+    for opts in tentativas:
+        try:
+            return duckdb.query(
+                f"SELECT * FROM read_csv_auto('{file_path}', {_montar(opts)})"
+            ).df()
+        except Exception as e:
+            erro = e
+    # Se todas falharem, propaga o último erro para o chamador tratar/logar.
+    raise erro
+
+
 def processarArquivo(args):
 
     """
@@ -46,15 +101,7 @@ def processarArquivo(args):
     #   - null_padding=true: completa linhas curtas (ex.: linha de ambiente do TOA5)
     #   - sample_size=-1: varre o arquivo todo para detectar o nº máximo de colunas
     try:
-        raw = duckdb.query(f"""
-            SELECT *
-            FROM read_csv_auto('{file_path}',
-            header=false,
-            all_varchar=true,
-            ignore_errors=true,
-            null_padding=true,
-            sample_size=-1)
-        """).df()
+        raw = _ler_csv_tolerante(file_path, all_varchar=True)
     except Exception as e:
         logger.error(f"Error 1 - Não foi possível ler o arquivo {file_path} \
             durante o processo de encontrar dados.\nDetalhes do erro: {str(e)}")
@@ -112,15 +159,7 @@ def processarArquivo(args):
     # manipulados, apenas lidos. header=false evita consumir uma linha de dados
     # como cabeçalho; null_padding mantém a largura estável.
     try:
-        data = duckdb.query(f"""
-            SELECT *
-            FROM read_csv_auto('{file_path}',
-            header=false,
-            ignore_errors=true,
-            null_padding=true,
-            sample_size=-1,
-            skip={data_row})
-        """).df()
+        data = _ler_csv_tolerante(file_path, skip=data_row)
     except Exception as e:
         logger.error(f"Error 2 - Não foi possível ler o arquivo {file_path} \
             durante o processo de encontrar dados.\nDetalhes do erro: {str(e)}")
