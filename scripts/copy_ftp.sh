@@ -28,7 +28,7 @@ SSH_KEY="${SSH_KEY:-}"                 # caminho para chave SSH (opcional)
 MAX_RETRIES="${MAX_RETRIES:-20}"
 BWLIMIT="${BWLIMIT:-0}"                # limite de banda em KB/s (0 = ilimitado)
 IO_TIMEOUT="${IO_TIMEOUT:-300}"        # timeout de I/O do rsync (segundos)
-CONN_TIMEOUT="${CONN_TIMEOUT:-30}"     # timeout de conexão do rsync (segundos)
+CONN_TIMEOUT="${CONN_TIMEOUT:-30}"     # timeout de conexão SSH (ConnectTimeout, segundos)
 DELETE="${DELETE:-true}"               # espelhar remoções de .DAT do FTP
 DRY_RUN="${DRY_RUN:-false}"            # true = simula sem transferir
 
@@ -78,7 +78,6 @@ sync_files() {
         --partial-dir="$PARTIAL_DIR"    # guarda os parciais fora do caminho final
         --delay-updates                 # só "promove" o arquivo quando completo
         --timeout="$IO_TIMEOUT"
-        --contimeout="$CONN_TIMEOUT"
         --bwlimit="$BWLIMIT"
         --log-file="$LOG_FILE"
         --prune-empty-dirs              # não cria árvore de diretórios vazia
