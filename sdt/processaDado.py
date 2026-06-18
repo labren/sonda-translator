@@ -44,11 +44,15 @@ def _ler_csv_tolerante(file_path, **opcoes):
 
     # Cadeia de tentativas, da mais automática para a mais permissiva. Nenhuma
     # delas altera os valores — só mudam a forma de interpretar o arquivo.
-    permissivo = dict(base, delim=',', quote='"', escape='"',
-                      strict_mode=False, max_line_size=10_000_000)
+    # O fallback usa parallel=false: o leitor paralelo do DuckDB não suporta
+    # null_padding junto com quebras de linha dentro de campos entre aspas
+    # (quoted new lines). A 1ª tentativa mantém a leitura paralela (rápida) para
+    # os arquivos normais; só os problemáticos caem para a leitura serial.
+    permissivo = dict(base, delim=',', quote='"', escape='"', strict_mode=False,
+                      parallel=False, max_line_size=10_000_000)
     tentativas = [
-        base,                                      # 1) detecção automática de dialeto
-        permissivo,                                # 2) dialeto SONDA (vírgula+aspas), não-estrito
+        base,                                      # 1) detecção automática de dialeto (paralelo)
+        permissivo,                                # 2) dialeto SONDA (vírgula+aspas), serial, não-estrito
         dict(permissivo, encoding='latin-1'),      # 3) idem, tolerante a bytes não-UTF-8
     ]
     erro = None
