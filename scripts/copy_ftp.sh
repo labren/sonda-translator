@@ -16,7 +16,8 @@
 # Uso:
 #   ./copy_ftp.sh                 # sincronização normal
 #   DRY_RUN=true ./copy_ftp.sh    # simula, sem transferir nada
-#   DELETE=false ./copy_ftp.sh    # não apaga arquivos locais removidos no FTP
+#   DELETE=true ./copy_ftp.sh     # (opcional) espelha: remove do DESTINO LOCAL os .DAT
+#                                 # que sumiram no FTP. A origem/FTP nunca é alterada.
 
 # Não usamos 'set -e' porque tratamos os códigos de saída do rsync manualmente.
 set -uo pipefail
@@ -29,7 +30,7 @@ MAX_RETRIES="${MAX_RETRIES:-20}"
 BWLIMIT="${BWLIMIT:-0}"                # limite de banda em KB/s (0 = ilimitado)
 IO_TIMEOUT="${IO_TIMEOUT:-300}"        # timeout de I/O do rsync (segundos)
 CONN_TIMEOUT="${CONN_TIMEOUT:-30}"     # timeout de conexão SSH (ConnectTimeout, segundos)
-DELETE="${DELETE:-true}"               # espelhar remoções de .DAT do FTP
+DELETE="${DELETE:-false}"              # false = só copia (nunca apaga nada no destino local; a ORIGEM/FTP nunca é tocada)
 DRY_RUN="${DRY_RUN:-false}"            # true = simula sem transferir
 CHECKSUM="${CHECKSUM:-false}"          # true = compara por conteúdo (checksum) em vez de tamanho+data
 VERBOSE="${VERBOSE:-true}"             # true = lista cada arquivo transferido
@@ -102,8 +103,11 @@ sync_files() {
         rsync_opts+=(--checksum)
     fi
 
-    # Espelha remoções de .DAT (sem nunca apagar arquivos locais que NÃO são
-    # alvo do filtro — eles são protegidos por padrão, pois ficam excluídos).
+    # IMPORTANTE: o rsync NUNCA apaga nada na ORIGEM (o FTP é somente-leitura).
+    # O --delete só afetaria o DESTINO local. Por padrão fica DESLIGADO: este
+    # script apenas COPIA. Se DELETE=true, ele removeria do destino local os
+    # .DAT que sumiram no FTP (e pode gerar avisos "cannot delete non-empty
+    # directory" para pastas que ainda têm arquivos não-.DAT protegidos).
     if [ "$DELETE" = "true" ]; then
         rsync_opts+=(--delete-delay)
     fi
