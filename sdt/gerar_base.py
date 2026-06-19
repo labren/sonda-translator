@@ -113,29 +113,25 @@ def gerarBase(output_dir, tipo, cabecalhos, overwrite=False):
 
 # Função para criar a tabela no banco de dados e inicializa todas as variáveis vazias
 def criar_base(arquivo, nome_base, variaveis):
-    # Verifica se o arquivo existe, se sim carrega o arquivo
-    if os.path.exists(arquivo):
-        # read_csv_auto lê a 2ª linha (unidades/sensores) como dado, gerando uma
-        # linha lixo com acronym NULL. Filtramos para não contaminar a base-semente.
-        con.execute(f"""
-            CREATE TABLE IF NOT EXISTS {nome_base} AS
-            SELECT * FROM read_csv_auto('{arquivo}')
-            WHERE acronym IS NOT NULL
-        """)
-        print(f"Tabela {nome_base} criada com sucesso a partir do arquivo {arquivo}.")
-    else:
-        # Criar a string com os nomes das colunas e os tipos corretos
-        columns_def = ', '.join(
-            f"{col} VARCHAR" if col == "acronym" else
-            f"{col} TIMESTAMP" if col == "timestamp" else
-            f"{col} INT" if col in ["year", "day", "min"] else
-            f"{col} FLOAT" 
-            for col in variaveis        )
-        
-        # Criar a tabela
-        con.execute(f"""
-            CREATE TABLE IF NOT EXISTS {nome_base} ({columns_def})
-        """)
+    # O schema é sempre derivado dos nomes canônicos do cabecalhos.json (variaveis),
+    # nunca inferido via read_csv_auto do CSV-semente. CSVs com cabeçalho irregular
+    # (ex.: linha de unidades/sensores multilinha) faziam o read_csv_auto produzir
+    # nomes de coluna inesperados, quebrando o restante do pipeline (binder/duplicados).
+    # Tabela vazia + inserir_dados (que usa pd.read_csv skiprows=[1]) popula tudo de
+    # forma consistente para MD, SD e WD.
+    colunas_int = ["year", "day", "min"]
+    columns_def = ', '.join(
+        f"{col} VARCHAR" if col == "acronym" else
+        f"{col} TIMESTAMP" if col == "timestamp" else
+        f"{col} INT" if col in colunas_int else
+        f"{col} FLOAT"
+        for col in variaveis)
+
+    con.execute(f"""
+        CREATE TABLE IF NOT EXISTS {nome_base} ({columns_def})
+    """)
+    print(f"Tabela {nome_base} criada a partir dos cabeçalhos canônicos "
+          f"({len(list(variaveis))} colunas).")
     
 
 # Função para processar os arquivos em paralelo
