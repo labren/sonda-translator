@@ -16,6 +16,7 @@ TIPO_CONFIG = {
         'tabela': 'solarimetrica',
         'subdir': 'Solarimetrico',
         'titulo': 'Arquivos públicos para distribuição na web',
+        'freq': '1min',
         'variaveis': [
             ('glo_avg', 'glo_avg', 'W/m2'),
             ('dir_avg', 'dir_avg', 'W/m2'),
@@ -30,6 +31,7 @@ TIPO_CONFIG = {
         'tabela': 'meteorologica',
         'subdir': 'Meteorologico',
         'titulo': 'Arquivos para distribuição na web',
+        'freq': '10min',
         'variaveis': [
             ('tp_sfc', 'tp_sfc', '°C'),
             ('humid_sfc', 'humid_sfc', '%'),
@@ -46,6 +48,7 @@ TIPO_CONFIG = {
         'tabela': 'anemometrica',
         'subdir': 'Anemometrico',
         'titulo': 'Arquivos para distribuição na web',
+        'freq': '1min',
         'variaveis': [
             ('ws10_avg', 'ws10_avg', 'm/s'),
             ('ws10_std', 'ws10_std', 'm/s'),
@@ -183,7 +186,7 @@ def _salvar_periodos(df_full, escopo, grupos, acronym, nome, lat, lon, alt,
 
         group = group.copy()
         group['acronym'] = cur_acr
-        group = fill_values(group, cur_acr, var_web)
+        group = fill_values(group, cur_acr, var_web, cfg['freq'])
 
         # Monta o DataFrame de saída com as colunas _dqc (vazias) intercaladas
         df_out = pd.DataFrame()
@@ -226,8 +229,9 @@ def _escrever_dat(df, web_columns, meta_vals, units, titulo, caminho):
         f.write('\n'.join(linhas) + '\n' + corpo)
 
 
-def fill_values(df, acronym, var_web):
-    """Remove duplicatas de timestamp e preenche o grid temporal completo (1 min)."""
+def fill_values(df, acronym, var_web, freq='1min'):
+    """Remove duplicatas de timestamp e preenche o grid temporal completo na frequência
+    do tipo de dado (MD=10min, SD/WD=1min)."""
     df = df[~df['timestamp'].duplicated(keep='first')]
 
     min_ts = df['timestamp'].min()
@@ -236,7 +240,7 @@ def fill_values(df, acronym, var_web):
     full_index = pd.date_range(
         start=f'{min_ts.year}-{str(min_ts.month).zfill(2)}-01 00:00:00',
         end=f'{max_ts.year}-{str(max_ts.month).zfill(2)}-{dias_no_mes} 23:59:00',
-        freq='1min')
+        freq=freq)
     df = df.set_index('timestamp').reindex(full_index).reset_index().rename(columns={'index': 'timestamp'})
 
     # Reconstrói colunas de metadados a partir do timestamp (grid completo, sem NaN)
