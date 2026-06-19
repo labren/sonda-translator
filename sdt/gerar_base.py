@@ -95,6 +95,7 @@ def gerarBase(output_dir, tipo, cabecalhos, overwrite=False):
             COPY (
                 SELECT DISTINCT *
                 FROM {nome_base}
+                WHERE acronym IS NOT NULL
                 ORDER BY timestamp, acronym
             )
             TO '{output_base + tipo_completo}' (FORMAT 'parquet');
@@ -114,8 +115,12 @@ def gerarBase(output_dir, tipo, cabecalhos, overwrite=False):
 def criar_base(arquivo, nome_base, variaveis):
     # Verifica se o arquivo existe, se sim carrega o arquivo
     if os.path.exists(arquivo):
+        # read_csv_auto lê a 2ª linha (unidades/sensores) como dado, gerando uma
+        # linha lixo com acronym NULL. Filtramos para não contaminar a base-semente.
         con.execute(f"""
-            CREATE TABLE IF NOT EXISTS {nome_base} AS SELECT * FROM read_csv_auto('{arquivo}')
+            CREATE TABLE IF NOT EXISTS {nome_base} AS
+            SELECT * FROM read_csv_auto('{arquivo}')
+            WHERE acronym IS NOT NULL
         """)
         print(f"Tabela {nome_base} criada com sucesso a partir do arquivo {arquivo}.")
     else:
