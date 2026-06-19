@@ -225,8 +225,12 @@ def inserir_dados(args):
         
         # 5. Verificar colunas da tabela
         try:
-            table_columns = con.execute(f"DESCRIBE {base}").fetchall()
-            table_columns = [col[0].lower() for col in table_columns]
+            # Nomes das colunas da tabela via description do cursor (DB-API) — estável
+            # entre versões do DuckDB. O formato de saída do DESCRIBE muda entre versões,
+            # então col[0] nem sempre é o nome da coluna (podia ser o tipo), o que zerava
+            # columns_to_insert e disparava o erro "Need a DataFrame with at least one column".
+            table_columns = [d[0].lower() for d in
+                             con.execute(f"SELECT * FROM {base} LIMIT 0").description]
             columns_to_insert = [col for col in new_data.columns if col.lower() in table_columns]
             if not columns_to_insert:
                 print(f" - Erro: nenhuma coluna de {arquivo} casa com a tabela {base} "
