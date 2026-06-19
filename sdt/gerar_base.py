@@ -127,8 +127,11 @@ def criar_base(arquivo, nome_base, variaveis):
         f"{col} FLOAT"
         for col in variaveis)
 
+    # CREATE OR REPLACE (não IF NOT EXISTS): garante o schema canônico em toda execução.
+    # Com IF NOT EXISTS, um .db de runs antigos mantinha um schema obsoleto (ex.: nomes
+    # de coluna gerados por read_csv_auto), o que zerava columns_to_insert no inserir_dados.
     con.execute(f"""
-        CREATE TABLE IF NOT EXISTS {nome_base} ({columns_def})
+        CREATE OR REPLACE TABLE {nome_base} ({columns_def})
     """)
     print(f"Tabela {nome_base} criada a partir dos cabeçalhos canônicos "
           f"({len(list(variaveis))} colunas).")
