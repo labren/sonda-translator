@@ -175,6 +175,9 @@ def inserir_dados(args):
         # 1. Leitura dos dados
         try:
             new_data = pd.read_csv(arquivo, skiprows=[1])
+            # Normaliza nomes de coluna (remove BOM/espaços) para casar com a tabela
+            # de forma robusta entre versões de pandas.
+            new_data.columns = [str(c).strip().lstrip('﻿') for c in new_data.columns]
             if new_data.empty:
                 print(f" - Arquivo {arquivo} não contém dados.")
                 return
@@ -194,7 +197,9 @@ def inserir_dados(args):
         # Substituir vírgulas por pontos e tratar valores inválidos
         for var in variaveis:
             if var in new_data.columns:
-                new_data[var] = new_data[var].astype(str).str.replace(',', '.').replace({r'\d+-': '0'}, regex=True)
+                new_data[var] = (new_data[var].astype(str)
+                                 .str.replace(',', '.', regex=False)
+                                 .str.replace(r'\d+-', '0', regex=True))
         
         # Converter para numérico e timestamp
         try:
@@ -223,14 +228,25 @@ def inserir_dados(args):
             table_columns = con.execute(f"DESCRIBE {base}").fetchall()
             table_columns = [col[0].lower() for col in table_columns]
             columns_to_insert = [col for col in new_data.columns if col.lower() in table_columns]
-            new_data = new_data[columns_to_insert]
+            if not columns_to_insert:
+                print(f" - Erro: nenhuma coluna de {arquivo} casa com a tabela {base} "
+                      f"(colunas do arquivo: {list(new_data.columns)}). Pulando.")
+                return
+            new_data = new_data[columns_to_insert].reset_index(drop=True)
             columns_str = ', '.join(columns_to_insert)
         except Exception as e:
             print(f" - Erro ao verificar colunas da tabela: {str(e)}")
             return
         
-        # 6. Registrar DataFrame para operações SQL
-        con.register('temp_df', new_data)
+        # 6. Registrar DataFrame para operações SQL.
+        # Preferimos converter para Arrow (formato nativo do DuckDB) — isso evita o erro
+        # "Need a DataFrame with at least one column" que ocorre quando a versão do DuckDB
+        # não consegue introspectar os dtypes do pandas (ex.: string dtype do pandas >=3.0).
+        try:
+            import pyarrow as pa
+            con.register('temp_df', pa.Table.from_pandas(new_data, preserve_index=False))
+        except Exception:
+            con.register('temp_df', new_data)
         con.execute("CREATE OR REPLACE VIEW new_data_view AS SELECT * FROM temp_df")
         
         # 7. Verificar registros duplicados
