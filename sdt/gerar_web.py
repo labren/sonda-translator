@@ -107,12 +107,30 @@ def gerar_web(output_path='output/sonda-banco-dados', tipo='SD'):
         units += [unidade, 'dqc']
     ncols = len(web_columns)
 
-    # SELECT do parquet já renomeando as colunas-fonte para o nome web (ex.: lw_calc_avg AS lw_avg)
-    select_exprs = list(META_COLS) + [
-        f'{src} AS {web}' if src != web else web for src, web, _ in cfg['variaveis']
-    ]
-
     con = duckdb.connect()
+
+    # Colunas realmente presentes no parquet (schema pode variar entre bases antigas/novas)
+    parquet_cols = {
+        row[0] for row in con.execute(
+            f"DESCRIBE SELECT * FROM read_parquet('{parquet_path}', union_by_name=true)"
+        ).fetchall()
+    }
+
+    # SELECT do parquet renomeando a coluna-fonte para o nome web. Se a fonte esperada não
+    # existir (ex.: base antiga com 'lw_avg' em vez de 'lw_calc_avg'), tenta um alias comum
+    # e, em último caso, emite NULL para não quebrar a geração.
+    def _fonte(src, web):
+        candidatos = [src, src.replace('_calc', ''), web]
+        for c in candidatos:
+            if c in parquet_cols:
+                if c != src:
+                    logging.warning(f"Coluna '{c}' usada como fonte para '{web}' (esperado '{src}').")
+                return f'{c} AS {web}' if c != web else web
+        logging.error(f"Nenhuma coluna-fonte encontrada para '{web}' (tentado: {candidatos}); preenchido com NULL.")
+        return f'CAST(NULL AS DOUBLE) AS {web}'
+
+    select_exprs = list(META_COLS) + [_fonte(src, web) for src, web, _ in cfg['variaveis']]
+
     con.execute(f"""
         CREATE OR REPLACE TABLE {cfg['tabela']} AS
         SELECT {', '.join(select_exprs)}
