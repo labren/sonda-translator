@@ -5,7 +5,7 @@ import pathlib
 import logging
 
 # Colunas de metadados (sempre as 5 primeiras, sem unidade e sem _dqc).
-META_COLS = ['acronym', 'timestamp', 'year', 'day', 'min']
+META_COLS = ['timestamp', 'acronym', 'year', 'day', 'min']
 
 # Configuração por tipo de dado. Cada variável é (coluna_no_parquet, nome_web, unidade).
 # No arquivo web cada variável é seguida da coluna <nome_web>_dqc (controle de qualidade),
@@ -103,8 +103,8 @@ def gerar_web(output_path='output/sonda-banco-dados', tipo='SD'):
     web_columns = list(META_COLS)
     units = [''] * len(META_COLS)
     for _, web, unidade in cfg['variaveis']:
-        web_columns += [web, f'{web}_dqc']
-        units += [unidade, 'dqc']
+        web_columns += [web]
+        units += [unidade]
     ncols = len(web_columns)
 
     con = duckdb.connect()
@@ -206,13 +206,12 @@ def _salvar_periodos(df_full, escopo, grupos, acronym, nome, lat, lon, alt,
         group['acronym'] = cur_acr
         group = fill_values(group, cur_acr, var_web, cfg['freq'])
 
-        # Monta o DataFrame de saída com as colunas _dqc (vazias) intercaladas
+        # Monta o DataFrame de saída
         df_out = pd.DataFrame()
         for col in META_COLS:
             df_out[col] = group[col]
         for web in var_web:
             df_out[web] = group[web]
-            df_out[f'{web}_dqc'] = ''
 
         if escopo == 'anual':
             base = (pathlib.Path(output_web) / f"anual/{cfg['subdir']}/{cur_acr}/{int(year)}"
@@ -229,20 +228,19 @@ def _salvar_periodos(df_full, escopo, grupos, acronym, nome, lat, lon, alt,
 
 
 def _montar_metadados(acronym, nome, lat, lon, alt, ncols):
-    vals = [str(acronym), str(nome), f'lat: {lat}', f'lon: {lon}', f'alt: {alt}'] + SONDA_META
+    vals = [str(acronym), str(nome), f'lat:{lat}', f'lon:{lon}', f'alt:{alt}'] + SONDA_META
     vals += [''] * (ncols - len(vals))
     return vals[:ncols]
 
 
 def _escrever_dat(df, web_columns, meta_vals, units, titulo, caminho):
-    """Grava o .dat no formato SONDA: título + linhas rotuladas + dados (tab-separado)."""
+    """Grava o .dat no formato web simplificado: metadados + cabeçalho + unidades + dados (vírgula-separado)."""
     linhas = [
-        titulo,
-        'Metadados da estação >' + SEP + SEP.join(meta_vals),
-        'Identificação da coluna >' + SEP + SEP.join(web_columns),
-        'Unidade >' + SEP + SEP.join(units),
+        ','.join(meta_vals),
+        ','.join(web_columns),
+        ','.join(units),
     ]
-    corpo = df.to_csv(sep=SEP, index=False, header=False)
+    corpo = df.to_csv(sep=',', index=False, header=False)
     with open(caminho, 'w', encoding='utf-8') as f:
         f.write('\n'.join(linhas) + '\n' + corpo)
 

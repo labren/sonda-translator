@@ -110,21 +110,22 @@ if __name__ == "__main__":
         if getattr(args, arg) is not None:
             print(f"-{arg.upper()}: {getattr(args, arg)}")
 
-    # Verifica se o diretorio de ftp contem arquivos .dat
-    if not os.path.exists(args.ftp_dir):
-        print(f"Erro: O diretório FTP '{args.ftp_dir}' não existe.")
-        exit(1)
-    # Verifica se os primeiros 5 arquivos de dat_files_df são válidos
-    if dat_files_df.empty:
-        print("Erro: Não foram encontrados arquivos .dat no diretório especificado.")
-        exit(1)
-    # Verifica se os 5 primeiros arquivos são válidos
-    for index, row in dat_files_df.head(5).iterrows():
-        if not os.path.exists(row['caminho']):
-            print(f"Erro: O arquivo '{row['caminho']}' não existe.")
-            print(f"Rode o comando 'python -m sdt --scan_ftp' para escanear o diretório FTP e atualizar a lista de arquivos.")
+    # Verifica se o diretorio de ftp contem arquivos .dat (apenas se não for gerar_base ou gerar_web)
+    if not (args.gerar_base or args.gerar_web):
+        if not os.path.exists(args.ftp_dir):
+            print(f"Erro: O diretório FTP '{args.ftp_dir}' não existe.")
             exit(1)
-    
+        # Verifica se os primeiros 5 arquivos de dat_files_df são válidos
+        if dat_files_df.empty:
+            print("Erro: Não foram encontrados arquivos .dat no diretório especificado.")
+            exit(1)
+        # Verifica se os 5 primeiros arquivos são válidos
+        for index, row in dat_files_df.head(5).iterrows():
+            if not os.path.exists(row['caminho']):
+                print(f"Erro: O arquivo '{row['caminho']}' não existe.")
+                print(f"Rode o comando 'python -m sdt --scan_ftp' para escanear o diretório FTP e atualizar a lista de arquivos.")
+                exit(1)
+
     print(50 * "-")
     print("Iniciando processamento...\n")
 
