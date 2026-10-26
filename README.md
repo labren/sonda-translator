@@ -78,7 +78,7 @@ output/
 
 1. Clone o repositório:
    ```bash
-   git clone https://github.com/seu-usuario/sonda-translator.git
+   git clone https://github.com/labren/sonda-translator.git
    cd sonda-translator
    ```
 
